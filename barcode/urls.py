@@ -5,5 +5,7 @@ __author__ = 'rf9'
 
 urlpatterns = [
     url(r'^api/source/list/$', views.source_list, name='sources'),
-    url(r'^api/register', views.register, name='register'),
+    url(r'^api/register/$', views.register, name='register'),
+    url(r'^api/barcode/(\S+)/$', views.view_barcode, name='barcode'),
+    url(r'^api/uuid/(\S+)/$', views.view_uuid, name='uuid'),
 ]
