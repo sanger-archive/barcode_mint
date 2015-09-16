@@ -67,13 +67,13 @@ def register(request):
                 'barcode': barcode_string,
                 'uuid': uuid_string,
                 'errors': [str(err)],
-            }), status=422)
+            }), status=400)
 
         return HttpResponse(json.dumps({
             'source': barcode.source.name,
             'barcode': barcode.barcode,
             'uuid': str(barcode.uuid),
-        }))
+        }), status=201)
     else:
         return HttpResponse(json.dumps({
             'source': source_string,
@@ -116,7 +116,7 @@ def view_uuid(request, uuid_string):
         return HttpResponse(json.dumps({
             'uuid': uuid_string,
             'errors': ["malformed uuid"],
-        }), status=422)
+        }), status=400)
 
     barcode = get_object_or_404(Barcode, uuid=uuid)
     return HttpResponse(json.dumps({

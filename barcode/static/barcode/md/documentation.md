@@ -18,7 +18,7 @@ This will register the barcode for you and return the following json object:
 		"errors": ["error1", "error2"],
 	}
 	
-First, you should check the status code. If this is 200 then your barcode has been registered and is guaranteed to be unique. If it is anything else (422), then your barcode is not registered and you should check `errors` to determine what went wrong. Possible errors include:
+First, you should check the status code. If this is 201 then your barcode has been registered and is guaranteed to be unique. If it is anything else (400, 422), then your barcode has not been registered and you should check `errors` to determine what went wrong. Possible errors include:
 
 	"barcode too short"
 	"malformed barcode"
