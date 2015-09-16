@@ -1,16 +1,14 @@
 import json
-import os
 import re
 from uuid import UUID
-
 from django.db import DatabaseError
 from django.db.transaction import atomic
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
-
 from barcode.models import Source, Barcode, NumberGenerator
-from mainsite import settings
+
+__author__ = 'rf9'
 
 
 def source_list(request):
@@ -124,8 +122,3 @@ def view_uuid(request, uuid_string):
         'barcode': barcode.barcode,
         'uuid': str(barcode.uuid),
     }))
-
-
-def docs(request):
-    return render(request, "barcode/markdown.html", {'title': "Documentation", 'markdown_content': "\n".join(
-        open(os.path.join(settings.BASE_DIR, "barcode/static/barcode/md/documentation.md")))})
