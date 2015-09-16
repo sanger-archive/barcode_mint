@@ -8,4 +8,5 @@ urlpatterns = [
     url(r'^api/register/$', views.register, name='register'),
     url(r'^api/barcode/(\S+)/$', views.view_barcode, name='barcode'),
     url(r'^api/uuid/(\S+)/$', views.view_uuid, name='uuid'),
+    url(r'^docs/$', views.docs, name='docs'),
 ]

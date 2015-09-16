@@ -1,0 +1,17 @@
+h2 {
+    font-family: sans-serif;
+}
+
+p {
+    margin-left: 10px;
+}
+
+pre {
+    margin-left: 30px;
+    line-height: 10px;
+    background-color: whitesmoke;
+    padding: 5px;
+}
+code {
+    background-color: whitesmoke;
+}
