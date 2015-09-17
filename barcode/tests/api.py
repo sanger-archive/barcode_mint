@@ -42,8 +42,8 @@ class GetByBarcodeTests(TestCase):
     def test_non_existent_barcode(self):
         try:
             view_barcode(None, self.barcode[:-1])
-        except Http404 as err:
-            self.assertIsNotNone(err)
+        except Http404:
+            pass
         else:
             self.fail('No 404 occurred.')
 
@@ -67,11 +67,11 @@ class GetByUuidTests(TestCase):
         self.assertEqual(self.uuid, uuid.UUID(json_object['uuid']))
         self.assertEqual(self.source_name, json_object['source'])
 
-    def test_non_existent_barcode(self):
+    def test_non_existent_uuid(self):
         try:
             view_uuid(None, str(uuid.uuid4()))
-        except Http404 as err:
-            self.assertIsNotNone(err)
+        except Http404:
+            pass
         else:
             self.fail('No 404 occurred.')
 
