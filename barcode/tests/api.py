@@ -138,15 +138,16 @@ class RegisterBarcode(TestCase):
         self.assertIn("invalid source", content['errors'])
 
     def test_with_given_unique_barcode(self):
-        response = register(MagicMock(method="POST", REQUEST={'source': self.source_string, 'barcode': "unique1"}))
+        barcode_string = 'UNIQUE1'
+        response = register(MagicMock(method="POST", REQUEST={'source': self.source_string, 'barcode': barcode_string}))
         self.assertEqual(201, response.status_code, msg=response.content)
 
         self.assertEqual(self.barcode_count + 1, Barcode.objects.count())
         barcode = Barcode.objects.last()
 
         content = json.loads(response.content.decode("ascii"))
-        self.assertEqual('UNIQUE1', barcode.barcode)
-        self.assertEqual('UNIQUE1', content['barcode'])
+        self.assertEqual(barcode_string, barcode.barcode)
+        self.assertEqual(barcode_string, content['barcode'])
         self.assertEqual(barcode.uuid, uuid.UUID(content['uuid']))
 
         self.assertEqual(self.source_string, barcode.source.name)
@@ -155,17 +156,54 @@ class RegisterBarcode(TestCase):
         self.assertNotIn('errors', content)
 
     def test_with_duplicate_barcode(self):
-        response = register(MagicMock(method="POST", REQUEST={'source': self.source_string, 'barcode': 'duplicate'}))
+        duplicate_string = Barcode.objects.last().barcode
+        response = register(
+            MagicMock(method="POST", REQUEST={'source': self.source_string, 'barcode': duplicate_string}))
         self.assertEqual(422, response.status_code, msg=response.content)
 
         self.assertEqual(self.barcode_count, Barcode.objects.count())
 
         content = json.loads(response.content.decode("ascii"))
-        self.assertEqual("DUPLICATE", content['barcode'])
+        self.assertEqual(duplicate_string, content['barcode'])
 
         self.assertEqual(self.source_string, content['source'])
 
         self.assertIn('barcode already taken', content['errors'])
+
+    def test_with_given_barcode_bad_characters(self):
+        for barcode_string in ['barcode*', 'bar code']:
+            barcode_string = barcode_string.upper()
+            response = register(
+                MagicMock(method="POST", REQUEST={'source': self.source_string, 'barcode': barcode_string}))
+            self.assertEqual(422, response.status_code, msg=response.content)
+
+            self.assertEqual(self.barcode_count, Barcode.objects.count())
+
+            content = json.loads(response.content.decode("ascii"))
+            self.assertEqual(barcode_string, content['barcode'])
+
+            self.assertEqual(self.source_string, content['source'])
+
+            self.assertIn('malformed barcode', content['errors'])
+
+    def test_with_given_barcode_trailing_space(self):
+        barcode_string = 'unique2'.upper()
+        response = register(
+            MagicMock(method="POST", REQUEST={'source': self.source_string, 'barcode': barcode_string + ' '}))
+        self.assertEqual(201, response.status_code, msg=response.content)
+
+        self.assertEqual(self.barcode_count + 1, Barcode.objects.count())
+        barcode = Barcode.objects.last()
+
+        content = json.loads(response.content.decode("ascii"))
+        self.assertEqual(barcode_string, barcode.barcode)
+        self.assertEqual(barcode_string, content['barcode'])
+        self.assertEqual(barcode.uuid, uuid.UUID(content['uuid']))
+
+        self.assertEqual(self.source_string, barcode.source.name)
+        self.assertEqual(self.source_string, content['source'])
+
+        self.assertNotIn('errors', content)
 
     def test_with_given_unique_uuid(self):
         uuid_string = str(uuid.uuid4())
