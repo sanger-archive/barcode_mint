@@ -40,7 +40,7 @@ To register multiple barcodes at once send a POST request to `api/register/batch
 		("uuids": ["uuid1", "uuid2" ... ],)
 	}
 	
-The `barcodes` and `uuids`	lists are optional, but must the the length of the lists must be equal to `count`.
+The `barcodes` and `uuids`	lists are optional, but if supplied the length of the lists must be equal to `count`.
 
 This will return a json list with an element for each barcode
 

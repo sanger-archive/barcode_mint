@@ -2,7 +2,6 @@ import json
 import uuid
 
 from django.core.urlresolvers import reverse
-from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from barcode.models import Source, Barcode
@@ -51,7 +50,7 @@ class GetByBarcodeTests(APITestCase):
         self.assertEqual(404, response.status_code)
 
 
-class GetByUuidTests(TestCase):
+class GetByUuidTests(APITestCase):
     barcode = "BARCODE1"
     source_name = "mylims"
     uuid = uuid.uuid4()
@@ -80,7 +79,7 @@ class GetByUuidTests(TestCase):
         self.assertEqual(404, response.status_code)
 
 
-class GetSourceListTest(TestCase):
+class GetSourceListTest(APITestCase):
     def setUp(self):
         Source.objects.create(name="mylims")
         Source.objects.create(name="sscape")
@@ -99,7 +98,7 @@ class GetSourceListTest(TestCase):
         self.assertListEqual(["mylims", "sscape", "cgap"], sources)
 
 
-class RegisterBarcode(TestCase):
+class RegisterBarcode(APITestCase):
     source_string = "mylims"
 
     def setUp(self):
@@ -179,7 +178,7 @@ class RegisterBarcode(TestCase):
         self.assertEqual(self.barcode_count, Barcode.objects.count())
 
         content = json.loads(response.content.decode("ascii"))
-        print(content)
+
         self.assertEqual(duplicate_string, content['barcode'])
 
         self.assertEqual(self.source_string, content['source'])
@@ -259,7 +258,7 @@ class RegisterBarcode(TestCase):
         self.assertIn('uuid already taken', content['errors'])
 
 
-class RegisterBarcodeBatch(TestCase):
+class RegisterBarcodeBatch(APITestCase):
     source_string = "mylims"
 
     def setUp(self):
@@ -326,8 +325,8 @@ class RegisterBarcodeBatch(TestCase):
         barcodes = ['code1', 'code2']
 
         url = reverse('barcode:register_batch')
-        response = self.client.post(url,
-                                    data={'source': self.source_string, 'count': 2, 'barcodes': ['code1', 'code2']})
+        data = {'source': self.source_string, 'count': 2, 'barcodes': ['code1', 'code2']}
+        response = self.client.post(url, data=json.dumps(data), content_type='application/json')
         self.assertEqual(201, response.status_code, msg=response.content)
 
         content = json.loads(response.content.decode("ascii"))
@@ -341,4 +340,16 @@ class RegisterBarcodeBatch(TestCase):
 
         self.assertEqual(self.barcode_count + 2, Barcode.objects.count())
 
+    def test_with_wrong_number_of_barcodes(self):
+        barcodes = ['code1', 'code2']
 
+        url = reverse('barcode:register_batch')
+        data = {'source': self.source_string, 'count': 10, 'barcodes': ['code1', 'code2']}
+        response = self.client.post(url, data=json.dumps(data), content_type='application/json')
+        self.assertEqual(422, response.status_code, msg=response.content)
+
+        content = json.loads(response.content.decode("ascii"))
+        self.assertIn("errors", content)
+        self.assertIn('wrong number of barcodes given', content['errors'])
+
+        self.assertEqual(self.barcode_count, Barcode.objects.count())
