@@ -3,12 +3,9 @@ import uuid
 
 from django.core.urlresolvers import reverse
 from django.test import TestCase
-from mock import MagicMock
-
 from rest_framework.test import APITestCase
 
 from barcode.models import Source, Barcode
-from barcode.views.api import register
 
 __author__ = 'rf9'
 
@@ -182,6 +179,7 @@ class RegisterBarcode(TestCase):
         self.assertEqual(self.barcode_count, Barcode.objects.count())
 
         content = json.loads(response.content.decode("ascii"))
+        print(content)
         self.assertEqual(duplicate_string, content['barcode'])
 
         self.assertEqual(self.source_string, content['source'])
@@ -265,9 +263,11 @@ class RegisterBarcodeBatch(TestCase):
     source_string = "mylims"
 
     def setUp(self):
-        source = Source.objects.create(name=self.source_string)
+        Source.objects.create(name=self.source_string)
 
-    def test_with_source_only(self):
+        self.barcode_count = Barcode.objects.count()
+
+    def test_with_source_and_count(self):
         url = reverse('barcode:register_batch')
         response = self.client.post(url, data={'source': self.source_string, 'count': 10})
         self.assertEqual(201, response.status_code, msg=response.content)
@@ -278,3 +278,67 @@ class RegisterBarcodeBatch(TestCase):
         for barcode in content:
             self.assertIn('barcode', barcode)
             self.assertIn('uuid', barcode)
+
+        self.assertEqual(self.barcode_count + 10, Barcode.objects.count())
+
+    def test_without_source(self):
+        url = reverse('barcode:register_batch')
+        response = self.client.post(url, data={'count': 10})
+        self.assertEqual(422, response.status_code, msg=response.content)
+
+        content = json.loads(response.content.decode("ascii"))
+        self.assertIn('errors', content)
+        self.assertListEqual(['source missing'], content['errors'])
+
+        self.assertEqual(self.barcode_count, Barcode.objects.count())
+
+    def test_without_count(self):
+        url = reverse('barcode:register_batch')
+        response = self.client.post(url, data={'source': self.source_string})
+        self.assertEqual(201, response.status_code, msg=response.content)
+
+        content = json.loads(response.content.decode("ascii"))
+        self.assertEqual(0, len(content))
+
+        self.assertEqual(self.barcode_count, Barcode.objects.count())
+
+    def test_with_zero_count(self):
+        url = reverse('barcode:register_batch')
+        response = self.client.post(url, data={'source': self.source_string, 'count': 0})
+        self.assertEqual(201, response.status_code, msg=response.content)
+
+        content = json.loads(response.content.decode("ascii"))
+        self.assertEqual(0, len(content))
+
+        self.assertEqual(self.barcode_count, Barcode.objects.count())
+
+    def test_with_negative_count(self):
+        url = reverse('barcode:register_batch')
+        response = self.client.post(url, data={'source': self.source_string, 'count': -5})
+        self.assertEqual(201, response.status_code, msg=response.content)
+
+        content = json.loads(response.content.decode("ascii"))
+        self.assertEqual(0, len(content))
+
+        self.assertEqual(self.barcode_count, Barcode.objects.count())
+
+    def test_with_specific_barcodes(self):
+        barcodes = ['code1', 'code2']
+
+        url = reverse('barcode:register_batch')
+        response = self.client.post(url,
+                                    data={'source': self.source_string, 'count': 2, 'barcodes': barcodes})
+        self.assertEqual(201, response.status_code, msg=response.content)
+
+        content = json.loads(response.content.decode("ascii"))
+        self.assertEqual(2, len(content))
+
+        for return_barcode, barcode_string in zip(content, barcodes):
+            self.assertIn('barcode', return_barcode)
+            self.assertIn('uuid', return_barcode)
+
+            self.assertEqual(barcode_string, return_barcode['barcode'])
+
+        self.assertEqual(self.barcode_count + 2, Barcode.objects.count())
+
+

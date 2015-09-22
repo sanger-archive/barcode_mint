@@ -73,6 +73,9 @@ def register(request):
             barcode = generate_barcode(barcode_string, uuid, source)
         except DatabaseError as err:
             return Response({
+                'source': source_string,
+                'barcode': barcode_string,
+                'uuid': uuid_string,
                 'errors': [str(err)],
             }, status=client.BAD_REQUEST)
 
@@ -80,6 +83,9 @@ def register(request):
         return Response(serializer.data, status=client.CREATED)
     else:
         return Response({
+            'source': source_string,
+            'barcode': barcode_string,
+            'uuid': uuid_string,
             'errors': errors,
         }, status=client.UNPROCESSABLE_ENTITY)
 
@@ -89,9 +95,12 @@ def register(request):
 def register_batch(request):
     errors = []
 
-    count = int(request.data.get('count'))
+    try:
+        count = int(request.data.get('count'))
+    except (ValueError, TypeError):
+        count = 0
 
-    barcode_string_list = request.data.get('barcode')
+    barcode_string_list = request.data.getlist('barcodes')
 
     if barcode_string_list:
         if len(barcode_string_list) != count:
@@ -118,7 +127,7 @@ def register_batch(request):
         else:
             errors.append("invalid source")
 
-    uuid_string_list = request.data.get('uuid')
+    uuid_string_list = request.data.getlist('uuids')
     if uuid_string_list:
         if len(uuid_string_list) != count:
             errors.append("wrong number of uuids given")
@@ -155,10 +164,6 @@ def register_batch(request):
         return Response([BarcodeSerializer(barcode).data for barcode in barcode_list], status=client.CREATED)
     else:
         return Response({
-            'source': source_string,
-            'barcode': barcode_string_list,
-            'uuid': uuid_string_list,
-            'count': count,
             'errors': errors,
         }, status=client.UNPROCESSABLE_ENTITY)
 
