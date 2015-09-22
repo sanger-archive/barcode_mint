@@ -2,9 +2,9 @@
 To register a barcode, send a HTTP POST request to `/api/register/`. This request should contain the following json object:
 	
 	{
-		"source" = "myLims",
-		["barcode" = "MYLIMS12345",]
-		["uuid" = "de305d54-75b4-431b-adb2-eb6b9e546014",]
+		"source": "myLims",
+		("barcode": "MYLIMS12345",)
+		("uuid": "de305d54-75b4-431b-adb2-eb6b9e546014",)
 	}
 	
 A list of valid LIMS names can be found at `/api/source/list/`.
@@ -29,6 +29,34 @@ First, you should check the status code. If this is 201 then your barcode has be
 	"invalid source"
 	"uuid already taken"
 	"malformed uuid"
+	
+## Registering multiple barcodes
+To register multiple barcodes at once send a POST request to `api/register/batch`. The request body should be a json object like this:
+
+	{
+		"source": "mylims",
+		"count": 10,
+		("barcodes": ["barcode1", "barcode2" ... ],)
+		("uuids": ["uuid1", "uuid2" ... ],)
+	}
+	
+The `barcodes` and `uuids`	lists are optional, but must the the length of the lists must be equal to `count`.
+
+This will return a json list with an element for each barcode
+
+	[
+		{
+			"barcode": "BARCODE1",
+			"uuid": "54b25c77-abc3-44a5-800b-059aca50bb99",
+			"source": "mylims"
+		},
+		{
+			"barcode": "BARCODE2",
+			"uuid": "1bac5d19-09b6-4454-829e-7745db6f5929",
+			"source": "mylims"
+		},
+		...
+	]
 	
 ## Viewing a barcode
 To view a information about a barcode sent a HTTP GET request to `/api/barcode/{barcode}/` with the barcode or `/api/uuid/{uuid}/` with the UUID. This will return a json object about the barcode supplied or 404.

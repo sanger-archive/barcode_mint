@@ -8,6 +8,7 @@ urlpatterns = [
     # URLs for the api
     url(r'^api/source/list/$', api.source_list, name='sources'),
     url(r'^api/register/$', api.register, name='register'),
+    url(r'^api/register/batch$', api.register_batch, name='register_batch'),
     url(r'^api/barcode/(\S+)/$', api.view_barcode, name='barcode'),
     url(r'^api/uuid/(\S+)/$', api.view_uuid, name='uuid'),
 

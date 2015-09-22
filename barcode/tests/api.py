@@ -142,7 +142,6 @@ class RegisterBarcode(TestCase):
         self.assertIn("source missing", content['errors'])
 
     def test_with_invalid_source(self):
-
         url = reverse('barcode:register')
         response = self.client.post(url, data={'source': 'fakelims'})
         self.assertEqual(422, response.status_code)
@@ -209,7 +208,7 @@ class RegisterBarcode(TestCase):
         barcode_string = 'unique2'.upper()
 
         url = reverse('barcode:register')
-        response = self.client.post(url, data={'source': self.source_string, "barcode": ' '+barcode_string+' '})
+        response = self.client.post(url, data={'source': self.source_string, "barcode": ' ' + barcode_string + ' '})
         self.assertEqual(201, response.status_code, msg=response.content)
 
         self.assertEqual(self.barcode_count + 1, Barcode.objects.count())
@@ -260,3 +259,22 @@ class RegisterBarcode(TestCase):
         self.assertEqual(self.source_string, content['source'])
 
         self.assertIn('uuid already taken', content['errors'])
+
+
+class RegisterBarcodeBatch(TestCase):
+    source_string = "mylims"
+
+    def setUp(self):
+        source = Source.objects.create(name=self.source_string)
+
+    def test_with_source_only(self):
+        url = reverse('barcode:register_batch')
+        response = self.client.post(url, data={'source': self.source_string, 'count': 10})
+        self.assertEqual(201, response.status_code, msg=response.content)
+
+        content = json.loads(response.content.decode("ascii"))
+        self.assertEqual(10, len(content))
+
+        for barcode in content:
+            self.assertIn('barcode', barcode)
+            self.assertIn('uuid', barcode)

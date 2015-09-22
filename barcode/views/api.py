@@ -73,9 +73,6 @@ def register(request):
             barcode = generate_barcode(barcode_string, uuid, source)
         except DatabaseError as err:
             return Response({
-                'source': source_string,
-                'barcode': barcode_string,
-                'uuid': uuid_string,
                 'errors': [str(err)],
             }, status=client.BAD_REQUEST)
 
@@ -83,14 +80,89 @@ def register(request):
         return Response(serializer.data, status=client.CREATED)
     else:
         return Response({
-            'source': source_string,
-            'barcode': barcode_string,
-            'uuid': uuid_string,
             'errors': errors,
         }, status=client.UNPROCESSABLE_ENTITY)
 
 
 @atomic
+@api_view(['POST'])
+def register_batch(request):
+    errors = []
+
+    count = int(request.data.get('count'))
+
+    barcode_string_list = request.data.get('barcode')
+
+    if barcode_string_list:
+        if len(barcode_string_list) != count:
+            errors.append("wrong number of barcodes given")
+        for barcode_string in barcode_string_list:
+            barcode_string = barcode_string.upper().strip()
+            if len(barcode_string) < 5:
+                errors.append("barcode too short")
+            if not re.match(r'^[0-9A-Z]*$', barcode_string):
+                errors.append("malformed barcode")
+            if Barcode.objects.filter(barcode=barcode_string).count() > 0:
+                errors.append("barcode already taken")
+    else:
+        barcode_string_list = [None]*count
+
+    source_string = request.data.get('source')
+    source = None
+    if not source_string:
+        errors.append("source missing")
+    else:
+        sources = Source.objects.filter(name=source_string.lower().strip())
+        if sources.count() == 1:
+            source = sources[0]
+        else:
+            errors.append("invalid source")
+
+    uuid_string_list = request.data.get('uuid')
+    if uuid_string_list:
+        if len(uuid_string_list) != count:
+            errors.append("wrong number of uuids given")
+            uuid_list = [None]*count
+        else:
+            uuid_list = []
+            for uuid_string in uuid_string_list:
+                try:
+                    uuid = UUID(uuid_string)
+
+                    if Barcode.objects.filter(uuid=uuid).count() > 0:
+                        errors.append("uuid already taken")
+                    else:
+                        uuid_list.append(uuid)
+
+                except ValueError:
+                    errors.append('malformed uuid')
+    else:
+        uuid_list = [None]*count
+
+    if not errors:
+        try:
+            barcode_list = [generate_barcode(barcode_string, uuid, source) for barcode_string, uuid, c in
+                            zip(barcode_string_list, uuid_list, range(count))]
+        except DatabaseError as err:
+            return Response({
+                'source': source_string,
+                'barcode': barcode_string_list,
+                'uuid': uuid_string_list,
+                'count': count,
+                'errors': [str(err)],
+            }, status=client.BAD_REQUEST)
+
+        return Response([BarcodeSerializer(barcode).data for barcode in barcode_list], status=client.CREATED)
+    else:
+        return Response({
+            'source': source_string,
+            'barcode': barcode_string_list,
+            'uuid': uuid_string_list,
+            'count': count,
+            'errors': errors,
+        }, status=client.UNPROCESSABLE_ENTITY)
+
+
 def generate_barcode(barcode_string, uuid, source):
     """
     Returns a barcode object that has been created in the database.
