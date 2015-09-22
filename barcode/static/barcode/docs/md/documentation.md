@@ -1,9 +1,11 @@
 ## Registering a barcode
-To register a barcode, send a HTTP POST request to `/api/register/`. This request should contain the following query parameters:
-
-	"source" = "myLims"
-	["barcode" = "MYLIMS12345"]
-	["uuid" = "de305d54-75b4-431b-adb2-eb6b9e546014"]
+To register a barcode, send a HTTP POST request to `/api/register/`. This request should contain the following json object:
+	
+	{
+		"source" = "myLims",
+		["barcode" = "MYLIMS12345",]
+		["uuid" = "de305d54-75b4-431b-adb2-eb6b9e546014",]
+	}
 	
 A list of valid LIMS names can be found at `/api/source/list/`.
 

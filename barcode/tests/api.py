@@ -1,16 +1,19 @@
 import json
 import uuid
-from django.http import Http404
+
+from django.core.urlresolvers import reverse
 from django.test import TestCase
 from mock import MagicMock
 
+from rest_framework.test import APITestCase
+
 from barcode.models import Source, Barcode
-from barcode.views.api import view_barcode, view_uuid, source_list, register
+from barcode.views.api import register
 
 __author__ = 'rf9'
 
 
-class GetByBarcodeTests(TestCase):
+class GetByBarcodeTests(APITestCase):
     barcode = "BARCODE1"
     source_name = "mylims"
     uuid = uuid.uuid4()
@@ -20,32 +23,35 @@ class GetByBarcodeTests(TestCase):
                                uuid=self.uuid)
 
     def test_get_by_exact_barcode(self):
-        return_data = view_barcode(None, self.barcode)
+        url = reverse('barcode:barcode', args=(self.barcode,))
 
-        self.assertEqual(200, return_data.status_code)
-        json_object = json.loads(return_data.content.decode("ascii"))
+        response = self.client.get(url)
+
+        self.assertEqual(200, response.status_code, response.content)
+        json_object = json.loads(response.content.decode("ascii"))
 
         self.assertEqual(self.barcode, json_object['barcode'])
         self.assertEqual(self.uuid, uuid.UUID(json_object['uuid']))
         self.assertEqual(self.source_name, json_object['source'])
 
     def test_by_barcode_wrong_case(self):
-        return_data = view_barcode(None, self.barcode.capitalize())
+        url = reverse('barcode:barcode', args=(self.barcode.capitalize(),))
 
-        self.assertEqual(200, return_data.status_code)
-        json_object = json.loads(return_data.content.decode("ascii"))
+        response = self.client.get(url)
+
+        self.assertEqual(200, response.status_code)
+        json_object = json.loads(response.content.decode("ascii"))
 
         self.assertEqual(self.barcode, json_object['barcode'])
         self.assertEqual(self.uuid, uuid.UUID(json_object['uuid']))
         self.assertEqual(self.source_name, json_object['source'])
 
     def test_non_existent_barcode(self):
-        try:
-            view_barcode(None, self.barcode[:-1])
-        except Http404:
-            pass
-        else:
-            self.fail('No 404 occurred.')
+        url = reverse('barcode:barcode', args=(self.barcode[:-1],))
+
+        response = self.client.get(url)
+
+        self.assertEqual(404, response.status_code)
 
 
 class GetByUuidTests(TestCase):
@@ -58,22 +64,23 @@ class GetByUuidTests(TestCase):
                                uuid=self.uuid)
 
     def test_get_by_uuid(self):
-        return_data = view_uuid(None, str(self.uuid))
+        url = reverse('barcode:uuid', args=(self.uuid,))
 
-        self.assertEqual(200, return_data.status_code)
-        json_object = json.loads(return_data.content.decode("ascii"))
+        response = self.client.get(url)
+
+        self.assertEqual(200, response.status_code)
+        json_object = json.loads(response.content.decode("ascii"))
 
         self.assertEqual(self.barcode, json_object['barcode'])
         self.assertEqual(self.uuid, uuid.UUID(json_object['uuid']))
         self.assertEqual(self.source_name, json_object['source'])
 
     def test_non_existent_uuid(self):
-        try:
-            view_uuid(None, str(uuid.uuid4()))
-        except Http404:
-            pass
-        else:
-            self.fail('No 404 occurred.')
+        url = reverse('barcode:uuid', args=(uuid.uuid4(),))
+
+        response = self.client.get(url)
+
+        self.assertEqual(404, response.status_code)
 
 
 class GetSourceListTest(TestCase):
@@ -83,7 +90,9 @@ class GetSourceListTest(TestCase):
         Source.objects.create(name="cgap")
 
     def test_can_list_sources(self):
-        response = source_list(None)
+        url = reverse('barcode:sources')
+        response = self.client.get(url)
+
         self.assertEqual(200, response.status_code)
 
         content = json.loads(response.content.decode("ascii"))
@@ -104,7 +113,9 @@ class RegisterBarcode(TestCase):
         self.barcode_count = Barcode.objects.count()
 
     def test_with_source_only(self):
-        response = register(MagicMock(method="POST", REQUEST={'source': self.source_string}))
+        url = reverse('barcode:register')
+        response = self.client.post(url, data={'source': self.source_string})
+
         self.assertEqual(201, response.status_code, msg=response.content)
 
         self.assertEqual(self.barcode_count + 1, Barcode.objects.count())
@@ -120,7 +131,9 @@ class RegisterBarcode(TestCase):
         self.assertNotIn('errors', content)
 
     def test_with_no_source(self):
-        response = register(MagicMock(method="POST", REQUEST={}))
+        url = reverse('barcode:register')
+        response = self.client.post(url)
+
         self.assertEqual(422, response.status_code)
 
         self.assertEqual(self.barcode_count, Barcode.objects.count())
@@ -129,7 +142,9 @@ class RegisterBarcode(TestCase):
         self.assertIn("source missing", content['errors'])
 
     def test_with_invalid_source(self):
-        response = register(MagicMock(method="POST", REQUEST={'source': "fakelims"}))
+
+        url = reverse('barcode:register')
+        response = self.client.post(url, data={'source': 'fakelims'})
         self.assertEqual(422, response.status_code)
 
         self.assertEqual(self.barcode_count, Barcode.objects.count())
@@ -139,7 +154,9 @@ class RegisterBarcode(TestCase):
 
     def test_with_given_unique_barcode(self):
         barcode_string = 'UNIQUE1'
-        response = register(MagicMock(method="POST", REQUEST={'source': self.source_string, 'barcode': barcode_string}))
+
+        url = reverse('barcode:register')
+        response = self.client.post(url, data={'source': self.source_string, "barcode": barcode_string})
         self.assertEqual(201, response.status_code, msg=response.content)
 
         self.assertEqual(self.barcode_count + 1, Barcode.objects.count())
@@ -157,8 +174,10 @@ class RegisterBarcode(TestCase):
 
     def test_with_duplicate_barcode(self):
         duplicate_string = Barcode.objects.last().barcode
-        response = register(
-            MagicMock(method="POST", REQUEST={'source': self.source_string, 'barcode': duplicate_string}))
+
+        url = reverse('barcode:register')
+        response = self.client.post(url, data={'source': self.source_string, "barcode": duplicate_string})
+
         self.assertEqual(422, response.status_code, msg=response.content)
 
         self.assertEqual(self.barcode_count, Barcode.objects.count())
@@ -171,10 +190,10 @@ class RegisterBarcode(TestCase):
         self.assertIn('barcode already taken', content['errors'])
 
     def test_with_given_barcode_bad_characters(self):
+        url = reverse('barcode:register')
         for barcode_string in ['barcode*', 'bar code']:
             barcode_string = barcode_string.upper()
-            response = register(
-                MagicMock(method="POST", REQUEST={'source': self.source_string, 'barcode': barcode_string}))
+            response = self.client.post(url, data={'source': self.source_string, 'barcode': barcode_string})
             self.assertEqual(422, response.status_code, msg=response.content)
 
             self.assertEqual(self.barcode_count, Barcode.objects.count())
@@ -188,8 +207,9 @@ class RegisterBarcode(TestCase):
 
     def test_with_given_barcode_trailing_space(self):
         barcode_string = 'unique2'.upper()
-        response = register(
-            MagicMock(method="POST", REQUEST={'source': self.source_string, 'barcode': barcode_string + ' '}))
+
+        url = reverse('barcode:register')
+        response = self.client.post(url, data={'source': self.source_string, "barcode": ' '+barcode_string+' '})
         self.assertEqual(201, response.status_code, msg=response.content)
 
         self.assertEqual(self.barcode_count + 1, Barcode.objects.count())
@@ -207,7 +227,9 @@ class RegisterBarcode(TestCase):
 
     def test_with_given_unique_uuid(self):
         uuid_string = str(uuid.uuid4())
-        response = register(MagicMock(method="POST", REQUEST={'source': self.source_string, 'uuid': uuid_string}))
+
+        url = reverse('barcode:register')
+        response = self.client.post(url, data={'source': self.source_string, "uuid": uuid_string})
         self.assertEqual(201, response.status_code, msg=response.content)
 
         self.assertEqual(self.barcode_count + 1, Barcode.objects.count())
@@ -225,7 +247,9 @@ class RegisterBarcode(TestCase):
 
     def test_with_duplicate_uuid(self):
         uuid_string = str(Barcode.objects.last().uuid)
-        response = register(MagicMock(method="POST", REQUEST={'source': self.source_string, 'uuid': uuid_string}))
+
+        url = reverse('barcode:register')
+        response = self.client.post(url, data={'source': self.source_string, 'uuid': uuid_string})
         self.assertEqual(422, response.status_code, msg=response.content)
 
         self.assertEqual(self.barcode_count, Barcode.objects.count())

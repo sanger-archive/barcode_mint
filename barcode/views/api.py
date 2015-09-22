@@ -7,26 +7,34 @@ from django.db import DatabaseError
 from django.db.transaction import atomic
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
-from django.views.decorators.csrf import csrf_exempt
+from rest_framework import serializers
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 
 from barcode.models import Source, Barcode, NumberGenerator
 
 __author__ = 'rf9'
 
 
+class BarcodeSerializer(serializers.ModelSerializer):
+    source = serializers.StringRelatedField()
+
+    class Meta:
+        model = Barcode
+        fields = ('barcode', 'uuid', 'source')
+
+
+@api_view(['GET'])
 def source_list(request):
-    return HttpResponse(json.dumps({'sources': [source.name for source in Source.objects.all()]}))
+    return Response({'sources': [source.name for source in Source.objects.all()]})
 
 
-@csrf_exempt
 @atomic
+@api_view(['POST'])
 def register(request):
-    if request.method != "POST":
-        return HttpResponse("You should POST to this URL.", status=405)
-
     errors = []
 
-    barcode_string = request.REQUEST.get('barcode')
+    barcode_string = request.data.get('barcode')
 
     if barcode_string:
         barcode_string = barcode_string.upper().strip()
@@ -37,7 +45,7 @@ def register(request):
         if Barcode.objects.filter(barcode=barcode_string).count() > 0:
             errors.append("barcode already taken")
 
-    source_string = request.REQUEST.get('source')
+    source_string = request.data.get('source')
     source = None
     if not source_string:
         errors.append("source missing")
@@ -48,7 +56,7 @@ def register(request):
         else:
             errors.append("invalid source")
 
-    uuid_string = request.REQUEST.get('uuid')
+    uuid_string = request.data.get('uuid')
     uuid = None
     if uuid_string:
         try:
@@ -64,25 +72,22 @@ def register(request):
         try:
             barcode = generate_barcode(barcode_string, uuid, source)
         except DatabaseError as err:
-            return HttpResponse(json.dumps({
+            return Response({
                 'source': source_string,
                 'barcode': barcode_string,
                 'uuid': uuid_string,
                 'errors': [str(err)],
-            }), status=client.BAD_REQUEST)
+            }, status=client.BAD_REQUEST)
 
-        return HttpResponse(json.dumps({
-            'source': barcode.source.name,
-            'barcode': barcode.barcode,
-            'uuid': str(barcode.uuid),
-        }), status=client.CREATED)
+        serializer = BarcodeSerializer(barcode)
+        return Response(serializer.data, status=client.CREATED)
     else:
-        return HttpResponse(json.dumps({
+        return Response({
             'source': source_string,
             'barcode': barcode_string,
             'uuid': uuid_string,
             'errors': errors,
-        }), status=client.UNPROCESSABLE_ENTITY)
+        }, status=client.UNPROCESSABLE_ENTITY)
 
 
 @atomic
@@ -108,16 +113,15 @@ def generate_barcode(barcode_string, uuid, source):
     return barcode
 
 
+@api_view(['GET'])
 def view_barcode(request, barcode_string):
     barcode_string = barcode_string.upper().strip()
     barcode = get_object_or_404(Barcode, barcode=barcode_string)
-    return HttpResponse(json.dumps({
-        'source': barcode.source.name,
-        'barcode': barcode.barcode,
-        'uuid': str(barcode.uuid),
-    }))
+    serializer = BarcodeSerializer(barcode)
+    return Response(serializer.data)
 
 
+@api_view(['GET'])
 def view_uuid(request, uuid_string):
     try:
         uuid = UUID(uuid_string)
@@ -126,10 +130,6 @@ def view_uuid(request, uuid_string):
             'uuid': uuid_string,
             'errors': ["malformed uuid"],
         }), status=client.BAD_REQUEST)
-
     barcode = get_object_or_404(Barcode, uuid=uuid)
-    return HttpResponse(json.dumps({
-        'source': barcode.source.name,
-        'barcode': barcode.barcode,
-        'uuid': str(barcode.uuid),
-    }))
+    serializer = BarcodeSerializer(barcode)
+    return Response(serializer.data)

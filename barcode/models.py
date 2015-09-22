@@ -14,6 +14,9 @@ class Barcode(models.Model):
 class Source(models.Model):
     name = models.CharField(max_length=10)
 
+    def __str__(self):
+        return self.name
+
 
 class NumberGenerator(models.Model):
     pass
