@@ -327,7 +327,7 @@ class RegisterBarcodeBatch(TestCase):
 
         url = reverse('barcode:register_batch')
         response = self.client.post(url,
-                                    data={'source': self.source_string, 'count': 2, 'barcodes': barcodes})
+                                    data={'source': self.source_string, 'count': 2, 'barcodes': ['code1', 'code2']})
         self.assertEqual(201, response.status_code, msg=response.content)
 
         content = json.loads(response.content.decode("ascii"))

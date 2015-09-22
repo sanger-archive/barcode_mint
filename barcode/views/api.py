@@ -100,7 +100,7 @@ def register_batch(request):
     except (ValueError, TypeError):
         count = 0
 
-    barcode_string_list = request.data.getlist('barcodes')
+    barcode_string_list = request.data.get('barcodes')
 
     if barcode_string_list:
         if len(barcode_string_list) != count:
@@ -127,7 +127,7 @@ def register_batch(request):
         else:
             errors.append("invalid source")
 
-    uuid_string_list = request.data.getlist('uuids')
+    uuid_string_list = request.data.get('uuids')
     if uuid_string_list:
         if len(uuid_string_list) != count:
             errors.append("wrong number of uuids given")
