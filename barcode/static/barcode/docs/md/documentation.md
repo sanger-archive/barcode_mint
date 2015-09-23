@@ -139,21 +139,28 @@ The json object will look like:
 	}
 	
 ## Searching for barcodes
-To view all barcodes send a HTTP GET request to `/api/barcodes/`. You can optionally limit the search to specific critera by using the query parameters `barcode`, `uuid`, and `source`. This will return a list of json objects like this:
+To view all barcodes send a HTTP GET request to `/api/barcodes/`. You can optionally limit the search to specific critera by using the query parameters `barcode`, `uuid`, `source`, `index`, and `length`. `index` specifies where to start displaying barcodes from (default 0) and `length` specifies the number of barcodes to display (default 100).
 
-	[
-		{
-			"barcode": "CGAP62",
-			"uuid": "9de2c925-f2ca-4ce5-8444-217a6a46db60",
-			"source": "cgap",
-		},
-		{
-			"barcode": "CGAP63",
-			"uuid": "54b25c77-abc3-44a5-800b-059aca50bb99",
-			"source": "cgap",
-		},
-		...
-	]
+This will return a list of json objects like this:
+
+	{
+		"count": 523,
+		"barcodes": [
+			{
+				"barcode": "CGAP62",
+				"uuid": "9de2c925-f2ca-4ce5-8444-217a6a46db60",
+				"source": "cgap",
+			},
+			{
+				"barcode": "CGAP63",
+				"uuid": "54b25c77-abc3-44a5-800b-059aca50bb99",
+				"source": "cgap",
+			},
+			...
+		]
+	}
+	
+`count` is the total number of barcodes that match the 	
 		
 	
 ## Listing sources

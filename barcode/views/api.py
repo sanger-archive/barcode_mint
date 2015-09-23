@@ -243,4 +243,12 @@ def view_barcodes(request):
                 "source": source_string
             }, status=client.BAD_REQUEST)
 
-    return Response([BarcodeSerializer(barcode).data for barcode in query_set])
+    count = query_set.count()
+
+    start_index = int(request.REQUEST.get('index') or 0)
+    length = int(request.REQUEST.get('length') or 100)
+
+    return Response({
+        "count": count,
+        "barcodes": [BarcodeSerializer(barcode).data for barcode in query_set[start_index:start_index+length]]
+    })

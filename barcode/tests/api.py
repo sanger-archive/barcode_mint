@@ -67,8 +67,8 @@ class GetByUuidTests(APITestCase):
         self.assertEqual(200, response.status_code, response.content)
         json_list = json.loads(response.content.decode("ascii"))
 
-        self.assertEqual(1, len(json_list))
-        json_object = json_list[0]
+        self.assertEqual(1, len(json_list['barcodes']))
+        json_object = json_list['barcodes'][0]
 
         self.assertEqual(self.barcode, json_object['barcode'])
         self.assertEqual(self.uuid, uuid.UUID(json_object['uuid']))
@@ -82,7 +82,7 @@ class GetByUuidTests(APITestCase):
         self.assertEqual(200, response.status_code)
 
         json_list = json.loads(response.content.decode("ascii"))
-        self.assertEqual(0, len(json_list))
+        self.assertEqual(0, len(json_list['barcodes']))
 
 
 class GetSourceListTest(APITestCase):
