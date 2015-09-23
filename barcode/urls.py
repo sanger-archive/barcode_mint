@@ -1,17 +1,16 @@
 from django.conf.urls import url
+from rest_framework import routers
 
 from barcode.views import api, docs
 
 __author__ = 'rf9'
 
-urlpatterns = [
-    # URLs for the api
-    url(r'^api/sources/$', api.SourcesView.as_view(), name='sources'),
-    url(r'^api/register/$', api.register, name='register'),
-    url(r'^api/register/batch/$', api.register_batch, name='register_batch'),
-    url(r'^api/barcodes/(?P<barcode>\S+)/$', api.BarcodeView.as_view(), name='barcode'),
-    url(r'^api/barcodes/$', api.BarcodesView.as_view(), name='barcodes'),
+router = routers.SimpleRouter()
+router.register(r'api/barcodes', api.BarcodeViewSet, base_name='barcode')
+router.register(r'api/sources', api.SourcesViewSet)
 
+urlpatterns = [
     # URLs for the documentation
     url(r'^docs/$', docs.main, name='docs'),
-]
+] + router.urls
+

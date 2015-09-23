@@ -1,60 +1,26 @@
-## Registering a barcode
-To register a barcode, send a HTTP POST request to `/api/register/`. This request should contain the following json object:
+## Registering barcodes
+To register barcodes send a POST request to `/api/barcodes/`. The request body should be a json object like this:
+
+	[
+		{
+			"source": "mylims",
+			("count": 10,)
+			("barcode": "barcode1",)
+			("uuid": "uuid1",)
+		},
+		{
+			"source": "mylims",
+			("count": 10,)
+			("barcode": "barcode2",)
+			("uuid": "uuid2",)
+		},
+		...
+	]
 	
-	{
-		"source": "mylims",
-		("barcode": "MYLIMS12345",)
-		("uuid": "de305d54-75b4-431b-adb2-eb6b9e546014",)
-	}
-	
-A list of valid LIMS names can be found at `/api/sources/`.
+`count`, `barcodes`, and `uuids`	are optional. But if `count` is supplied neither `barcode` nor `uuid` can be.
 
-The barcode and uuid fields are optional. If they are not given they will be generated for you. It is recommended that you leave them blank unless there is a reason you need a particular barcode e.g. A barcode from an external source.
-
-This will register the barcode for you and return the following json object:
-
-	{
-		"source": "mylims",
-		"barcode": "MYLIMS12345",
-		"uuid": "de305d54-75b4-431b-adb2-eb6b9e546014",
-	}
-	
-First, you should check the status code. If this is 201 then your barcode has been registered and is guaranteed to be unique. If it is anything else (400, 422), then your barcode has not been registered and the return json will look something like this:
-
-	{
-		"errors": [
-			{
-				"error": "barcode already taken",
-				"barcode": "MYLIMS12345"
-			},
-			{
-				"error": "invalid source",
-				"source": "mylims"
-			}
-		]
-	}
-
-
-Possible errors include:
-
-	"malformed barcode"
-	"barcode already taken"
-	"source missing"
-	"invalid source"
-	"uuid already taken"
-	"malformed uuid"
-	
-## Registering multiple barcodes
-To register multiple barcodes at once send a POST request to `/api/register/batch`. The request body should be a json object like this:
-
-	{
-		"source": "mylims",
-		"count": 10,
-		("barcodes": ["barcode1", "barcode2" ... ],)
-		("uuids": ["uuid1", "uuid2" ... ],)
-	}
-	
-The `barcodes` and `uuids`	lists are optional, but if supplied the length of the lists must be equal to `count`.
+For each element in the list, if `count` is supplied it will generate that many barcodes with the source supplied.
+If `barcode` and/or `uuid` is supplied it will generate a barcode with that `source`, `barcode`, and `uuid`.
 
 This will return a json list with an element for each barcode
 
@@ -74,31 +40,42 @@ This will return a json list with an element for each barcode
 	
 If there is an error, none of the barcocdes will be registered and the return json will look like this:
 
-	{
-		"errors": [
-			{
-				"error": "malformed barcodes",
-				"barcodes": ["BAR*1", "BAR*2"]
-			},
-			{
-				"error": "uuids already taken",
-				"uuids": ["54b25c77-abc3-44a5-800b-059aca50bb99", "1bac5d19-09b6-4454-829e-7745db6f5929"]
-			}
-		]
-	}
+	[
+	    {
+	        "errors": [
+	            {
+	                "error": "malformed barcode",
+	                "barcode": "BAR*1"
+	            },
+	            {
+	                "error": "uuid already taken",
+	                "uuid": "ff94d3fd-dab5-4553-9e1a-17d2f424f385"
+	            }
+	        ]
+	    },
+	    {
+	        "errors": [
+	            {
+	                "error": "malformed barcode",
+	                "barcode": "BAR*2"
+	            },
+	            {
+	                "error": "uuid already taken",
+	                "uuid": "96890fa9-50de-484e-85a6-720c61bd912b"
+	            }
+	        ]
+	    }
+	]
 	
 Possible errors include:
 
 	{
-		"error": "wrong number of barcodes given"
+		"error": "malformed barcode",
+		"barcode": ...
 	},
 	{
-		"error": "malformed barcodes",
-		"barcodes": [...]
-	},
-	{
-		"error": "barcodes already taken",
-		"barcodes": [...]
+		"error": "barcode already taken",
+		"barcode": ...
 	},
 	{
 		"error": "duplicate barcodes given",
@@ -112,15 +89,12 @@ Possible errors include:
 		"source": ...
 	},
 	{
-		"error": "wrong number of uuids given"
+		"error": "uuid already taken",
+		"uuid": ...
 	},
 	{
-		"error": "uuids already taken",
-		"uuids": [...]
-	},
-	{
-		"error": "malformed uuids",
-		"uuids": [...]
+		"error": "malformed uuid",
+		"uuid": ...
 	},
 	{
 		"error": "duplicate uuids given",
@@ -139,7 +113,9 @@ The json object will look like:
 	}
 	
 ## Searching for barcodes
-To view all barcodes send a HTTP GET request to `/api/barcodes/`. You can optionally limit the search to specific critera by using the query parameters `barcode`, `uuid`, `source`, `offset`, and `length`. `offset` specifies where to start displaying barcodes from (default 0) and `length` specifies the number of barcodes to display (default 100).
+To view all barcodes send a HTTP GET request to `/api/barcodes/`. You can optionally limit the search to specific critera by using the query parameters `barcode`, `uuid`, `source`, `offset`, and `length`. 
+
+`offset` specifies where to start displaying barcodes from (default 0) and `length` specifies the number of barcodes to display (default 100).
 
 This will return a list of json objects like this:
 

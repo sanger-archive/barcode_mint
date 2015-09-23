@@ -7,9 +7,10 @@ from django.db.transaction import atomic
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework.decorators import api_view
-from rest_framework.generics import ListAPIView, RetrieveAPIView
+from rest_framework.mixins import RetrieveModelMixin, ListModelMixin, CreateModelMixin
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
+from rest_framework.viewsets import GenericViewSet, ReadOnlyModelViewSet
 
 from barcode.models import Source, Barcode, NumberGenerator
 
@@ -34,30 +35,35 @@ class StandardPaginationClass(LimitOffsetPagination):
     default_limit = 100
 
 
-class SourcesView(ListAPIView):
+class SourcesViewSet(ReadOnlyModelViewSet):
+    """
+    Returns a list of all valid sources.
+    """
     queryset = Source.objects.all()
     serializer_class = SourceSerializer
+    # For if you ever decide you need pagination.
+    # pagination_class = StandardPaginationClass
 
 
-class BarcodeView(RetrieveAPIView):
-    serializer_class = BarcodeSerializer
-
-    def get_object(self):
-        return get_object_or_404(Barcode, barcode=self.kwargs['barcode'].upper())
-
-
-class BarcodesView(ListAPIView):
+class BarcodeViewSet(RetrieveModelMixin,
+                     ListModelMixin,
+                     CreateModelMixin,
+                     GenericViewSet):
     serializer_class = BarcodeSerializer
     pagination_class = StandardPaginationClass
+
+    def retrieve(self, request, *args, **kwargs):
+        barcode = get_object_or_404(Barcode, barcode=kwargs['pk'].upper())
+        return Response(self.serializer_class(barcode).data)
 
     def get_queryset(self):
         query_set = Barcode.objects.all()
 
-        barcode_string = self.request.REQUEST.get("barcode")
+        barcode_string = self.request.query_params.get("barcode")
         if barcode_string:
             query_set = query_set.filter(barcode=barcode_string.upper().strip())
 
-        uuid_string = self.request.REQUEST.get("uuid")
+        uuid_string = self.request.query_params.get("uuid")
         if uuid_string:
             try:
                 uuid = UUID(uuid_string)
@@ -65,7 +71,7 @@ class BarcodesView(ListAPIView):
             except ValueError:
                 return []
 
-        source_string = self.request.REQUEST.get("source")
+        source_string = self.request.query_params.get("source")
         if source_string:
             sources = Source.objects.filter(name=source_string.lower().strip())
             if sources.count() == 1:
@@ -76,161 +82,92 @@ class BarcodesView(ListAPIView):
 
         return query_set
 
+    def create(self, request, *args, **kwargs):
+        response = []
 
-@atomic
-@api_view(['POST'])
-def register(request):
-    errors = []
+        barcodes = [datum["barcode"] for datum in request.data if "barcode" in datum]
 
-    barcode_string = request.data.get('barcode')
+        if len(barcodes) != len(set(barcodes)):
+            response.append({"errors": [{"error": 'duplicate barcodes given',
+                                         "barcodes": {barcode for barcode in barcodes if
+                                                      barcodes.count(barcode) > 1}}]})
 
-    if barcode_string:
-        barcode_string = barcode_string.upper().strip()
-        if not re.match(r'^[0-9A-Z]{5,}$', barcode_string):
-            errors.append({"error": "malformed barcode", "barcode": barcode_string})
-        if Barcode.objects.filter(barcode=barcode_string).count() > 0:
-            errors.append({"error": "barcode already taken", "barcode": barcode_string})
+        uuids = [datum["uuid"] for datum in request.data if "uuid" in datum]
+        if len(uuids) != len(set(uuids)):
+            response.append({"errors": [{"error": 'duplicate uuids given',
+                                         "uuids": {uuid for uuid in uuids if
+                                                      uuids.count(uuid) > 1}}]})
+        for data in request.data:
+            errors = []
 
-    source_string = request.data.get('source')
-    source = None
-    if not source_string:
-        errors.append({"error": "source missing"})
-    else:
-        sources = Source.objects.filter(name=source_string.lower().strip())
-        if sources.count() == 1:
-            source = sources[0]
+            source_string = data.get('source')
+            if not source_string:
+                errors.append({"error": "source missing"})
+            else:
+                sources = Source.objects.filter(name=source_string.lower().strip())
+                if sources.count() != 1:
+                    errors.append({"error": "invalid source", "source": source_string})
+
+            count = data.get("count")
+            if count:
+                if count != 1 and (data.get('barcode') or data.get('uuid')):
+                    errors.append("cannot specify count and barcode or uuid")
+            else:
+                barcode_string = data.get('barcode')
+
+                if barcode_string:
+                    barcode_string = barcode_string.upper().strip()
+                    if not re.match(r'^[0-9A-Z]{5,}$', barcode_string):
+                        errors.append({"error": "malformed barcode", "barcode": barcode_string})
+                    if Barcode.objects.filter(barcode=barcode_string).count() > 0:
+                        errors.append({"error": "barcode already taken", "barcode": barcode_string})
+
+                uuid_string = data.get('uuid')
+                if uuid_string:
+                    try:
+                        uuid = UUID(uuid_string)
+
+                        if Barcode.objects.filter(uuid=uuid).count() > 0:
+                            errors.append({"error": "uuid already taken", "uuid": uuid_string})
+
+                    except ValueError:
+                        errors.append({"error": 'malformed uuid', "uuid": uuid_string})
+            if errors:
+                response.append({
+                    'errors': errors,
+                })
+
+        if not response:
+            for data in request.data:
+
+                source = Source.objects.get(name=data.get('source'))
+
+                count = data.get('count')
+                if count:
+                    response += [BarcodeSerializer(generate_barcode(None, None, source)).data for x in
+                                 range(int(count))]
+                else:
+                    try:
+
+                        barcode_string = data.get('barcode')
+                        if barcode_string:
+                            barcode_string = barcode_string.upper().strip()
+                        barcode = generate_barcode(barcode_string, data.get('uuid'), source)
+                    except DatabaseError as err:
+                        return Response({
+                            'errors': [str(err)],
+                        }, status=client.BAD_REQUEST)
+
+                    serializer = BarcodeSerializer(barcode)
+                    response.append(serializer.data)
+
+            return Response(response, status=client.CREATED)
         else:
-            errors.append({"error": "invalid source", "source": source_string})
-
-    uuid_string = request.data.get('uuid')
-    uuid = None
-    if uuid_string:
-        try:
-            uuid = UUID(uuid_string)
-
-            if Barcode.objects.filter(uuid=uuid).count() > 0:
-                errors.append({"error": "uuid already taken", "uuid": uuid_string})
-
-        except ValueError:
-            errors.append({"error": 'malformed uuid', "uuid": uuid_string})
-
-    if not errors:
-        try:
-            barcode = generate_barcode(barcode_string, uuid, source)
-        except DatabaseError as err:
-            return Response({
-                'source': source_string,
-                'barcode': barcode_string,
-                'uuid': uuid_string,
-                'errors': [str(err)],
-            }, status=client.BAD_REQUEST)
-
-        serializer = BarcodeSerializer(barcode)
-        return Response(serializer.data, status=client.CREATED)
-    else:
-        return Response({
-            'errors': errors,
-        }, status=client.UNPROCESSABLE_ENTITY)
+            return Response([data for data in response if 'errors' in data], status=client.UNPROCESSABLE_ENTITY)
 
 
-@atomic
-@api_view(['POST'])
-def register_batch(request):
-    errors = []
-
-    try:
-        count = int(request.data.get('count'))
-    except (ValueError, TypeError):
-        count = 0
-
-    barcode_string_list = request.data.get('barcodes')
-
-    if barcode_string_list:
-        malformed_barcodes = []
-        taken_barcodes = []
-
-        barcode_string_list = [string.upper().strip() for string in barcode_string_list]
-        if len(barcode_string_list) != count:
-            errors.append({"error": "wrong number of barcodes given"})
-        for barcode_string in barcode_string_list:
-            if not re.match(r'^[0-9A-Z]{5,}$', barcode_string):
-                malformed_barcodes.append(barcode_string)
-            if Barcode.objects.filter(barcode=barcode_string).count() > 0:
-                taken_barcodes.append(barcode_string)
-
-        if malformed_barcodes:
-            errors.append({"error": "malformed barcodes", "barcodes": malformed_barcodes})
-        if taken_barcodes:
-            errors.append({"error": "barcodes already taken", "barcodes": taken_barcodes})
-        if len(barcode_string_list) != len(set(barcode_string_list)):
-            errors.append({"error": "duplicate barcodes given",
-                           "barcodes": {barcode for barcode in barcode_string_list if
-                                        barcode_string_list.count(barcode) > 1}})
-    else:
-        barcode_string_list = [None] * count
-
-    source_string = request.data.get('source')
-    source = None
-    if not source_string:
-        errors.append({"error": "source missing"})
-    else:
-        sources = Source.objects.filter(name=source_string.lower().strip())
-        if sources.count() == 1:
-            source = sources[0]
-        else:
-            errors.append({"error": "invalid source", "source": source_string})
-
-    uuid_string_list = request.data.get('uuids')
-    if uuid_string_list:
-        if len(uuid_string_list) != count:
-            errors.append({"error": "wrong number of uuids given"})
-            uuid_list = [None] * count
-        else:
-            uuid_list = []
-            taken_uuids = []
-            malformed_uuids = []
-            for uuid_string in uuid_string_list:
-                try:
-                    uuid = UUID(uuid_string)
-
-                    if Barcode.objects.filter(uuid=uuid).count() > 0:
-                        taken_uuids.append(uuid_string)
-                    else:
-                        uuid_list.append(uuid)
-
-                except ValueError:
-                    malformed_uuids.append(uuid_string)
-            if taken_uuids:
-                errors.append({"error": "uuids already taken", "uuids": taken_uuids})
-            if malformed_uuids:
-                errors.append({"error": "malformed uuids", "uuids": malformed_uuids})
-            if len(uuid_list) != len(set(uuid_list)):
-                errors.append({"error": "duplicate uuids given", "uuids": {uuid for uuid in uuid_list if
-                                                                           uuid_list.count(uuid) > 1}})
-    else:
-        uuid_list = [None] * count
-
-    if not errors:
-        try:
-            barcode_list = [generate_barcode(barcode_string, uuid, source) for barcode_string, uuid, c in
-                            zip(barcode_string_list, uuid_list, range(count))]
-        except DatabaseError as err:
-            return Response({
-                'source': source_string,
-                'barcode': barcode_string_list,
-                'uuid': uuid_string_list,
-                'count': count,
-                'errors': [str(err)],
-            }, status=client.BAD_REQUEST)
-
-        return Response([BarcodeSerializer(barcode).data for barcode in barcode_list], status=client.CREATED)
-    else:
-        return Response({
-            'errors': errors,
-        }, status=client.UNPROCESSABLE_ENTITY)
-
-
-def generate_barcode(barcode_string, uuid, source):
+@atomic()
+def generate_barcode(barcode, uuid, source):
     """
     Returns a barcode object that has been created in the database.
     Any Nones passed in as parameters will be generated for you.
@@ -240,13 +177,11 @@ def generate_barcode(barcode_string, uuid, source):
     :return: The generated barcode object
     :raises DatabaseError: The object could not be stored in the database.
     """
-    if not barcode_string:
-        while not barcode_string or Barcode.objects.filter(barcode=barcode_string).count() > 0:
-            barcode_string = source.name.upper() + str(NumberGenerator.objects.create().id)
+    if not barcode:
+        while not barcode or Barcode.objects.filter(barcode=barcode).count() > 0:
+            barcode = source.name.upper() + str(NumberGenerator.objects.create().id)
 
     if not uuid:
-        barcode = Barcode.objects.create(barcode=barcode_string, source=source)
+        return Barcode.objects.create(barcode=barcode, source=source)
     else:
-        barcode = Barcode.objects.create(barcode=barcode_string, source=source, uuid=uuid)
-
-    return barcode
+        return Barcode.objects.create(barcode=barcode, source=source, uuid=uuid)
