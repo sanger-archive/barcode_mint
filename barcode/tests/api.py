@@ -60,23 +60,29 @@ class GetByUuidTests(APITestCase):
                                uuid=self.uuid)
 
     def test_get_by_uuid(self):
-        url = reverse('barcode:uuid', args=(self.uuid,))
+        url = reverse('barcode:barcodes')+"?uuid="+str(self.uuid)
 
         response = self.client.get(url)
 
-        self.assertEqual(200, response.status_code)
-        json_object = json.loads(response.content.decode("ascii"))
+        self.assertEqual(200, response.status_code, response.content)
+        json_list = json.loads(response.content.decode("ascii"))
+
+        self.assertEqual(1, len(json_list))
+        json_object = json_list[0]
 
         self.assertEqual(self.barcode, json_object['barcode'])
         self.assertEqual(self.uuid, uuid.UUID(json_object['uuid']))
         self.assertEqual(self.source_name, json_object['source'])
 
     def test_non_existent_uuid(self):
-        url = reverse('barcode:uuid', args=(uuid.uuid4(),))
+        url = reverse('barcode:barcodes')+"?uuid="+str(uuid.uuid4())
 
         response = self.client.get(url)
 
-        self.assertEqual(404, response.status_code)
+        self.assertEqual(200, response.status_code)
+
+        json_list = json.loads(response.content.decode("ascii"))
+        self.assertEqual(0, len(json_list))
 
 
 class GetSourceListTest(APITestCase):
@@ -135,7 +141,7 @@ class RegisterBarcode(APITestCase):
         self.assertEqual(self.barcode_count, Barcode.objects.count())
 
         content = json.loads(response.content.decode("ascii"))
-        self.assertIn("source missing", content['errors'])
+        self.assertIn({"error": "source missing"}, content['errors'])
 
     def test_with_invalid_source(self):
         url = reverse('barcode:register')
@@ -145,7 +151,7 @@ class RegisterBarcode(APITestCase):
         self.assertEqual(self.barcode_count, Barcode.objects.count())
 
         content = json.loads(response.content.decode("ascii"))
-        self.assertIn("invalid source", content['errors'])
+        self.assertIn({"error": "invalid source", "source": "fakelims"}, content['errors'])
 
     def test_with_given_unique_barcode(self):
         barcode_string = 'UNIQUE1'
@@ -178,12 +184,7 @@ class RegisterBarcode(APITestCase):
         self.assertEqual(self.barcode_count, Barcode.objects.count())
 
         content = json.loads(response.content.decode("ascii"))
-
-        self.assertEqual(duplicate_string, content['barcode'])
-
-        self.assertEqual(self.source_string, content['source'])
-
-        self.assertIn('barcode already taken', content['errors'])
+        self.assertIn({"error": 'barcode already taken', "barcode": duplicate_string}, content['errors'])
 
     def test_with_given_barcode_bad_characters(self):
         url = reverse('barcode:register')
@@ -195,11 +196,7 @@ class RegisterBarcode(APITestCase):
             self.assertEqual(self.barcode_count, Barcode.objects.count())
 
             content = json.loads(response.content.decode("ascii"))
-            self.assertEqual(barcode_string, content['barcode'])
-
-            self.assertEqual(self.source_string, content['source'])
-
-            self.assertIn('malformed barcode', content['errors'])
+            self.assertIn({"error": 'malformed barcode', "barcode": barcode_string}, content['errors'])
 
     def test_with_given_barcode_trailing_space(self):
         barcode_string = 'unique2'.upper()
@@ -251,18 +248,17 @@ class RegisterBarcode(APITestCase):
         self.assertEqual(self.barcode_count, Barcode.objects.count())
 
         content = json.loads(response.content.decode("ascii"))
-        self.assertEqual(uuid_string, content['uuid'])
 
-        self.assertEqual(self.source_string, content['source'])
-
-        self.assertIn('uuid already taken', content['errors'])
+        self.assertIn({"error": 'uuid already taken', "uuid": uuid_string}, content['errors'])
 
 
 class RegisterBarcodeBatch(APITestCase):
     source_string = "mylims"
 
     def setUp(self):
-        Source.objects.create(name=self.source_string)
+        source = Source.objects.create(name=self.source_string)
+
+        Barcode.objects.create(source=source, barcode="DUPLICATE")
 
         self.barcode_count = Barcode.objects.count()
 
@@ -287,7 +283,7 @@ class RegisterBarcodeBatch(APITestCase):
 
         content = json.loads(response.content.decode("ascii"))
         self.assertIn('errors', content)
-        self.assertListEqual(['source missing'], content['errors'])
+        self.assertIn({"error": 'source missing'}, content['errors'])
 
         self.assertEqual(self.barcode_count, Barcode.objects.count())
 
@@ -325,7 +321,7 @@ class RegisterBarcodeBatch(APITestCase):
         barcodes = ['code1', 'code2']
 
         url = reverse('barcode:register_batch')
-        data = {'source': self.source_string, 'count': 2, 'barcodes': ['code1', 'code2']}
+        data = {'source': self.source_string, 'count': 2, 'barcodes': barcodes}
         response = self.client.post(url, data=json.dumps(data), content_type='application/json')
         self.assertEqual(201, response.status_code, msg=response.content)
 
@@ -336,7 +332,7 @@ class RegisterBarcodeBatch(APITestCase):
             self.assertIn('barcode', return_barcode)
             self.assertIn('uuid', return_barcode)
 
-            self.assertEqual(barcode_string, return_barcode['barcode'])
+            self.assertEqual(barcode_string.upper(), return_barcode['barcode'])
 
         self.assertEqual(self.barcode_count + 2, Barcode.objects.count())
 
@@ -344,12 +340,107 @@ class RegisterBarcodeBatch(APITestCase):
         barcodes = ['code1', 'code2']
 
         url = reverse('barcode:register_batch')
-        data = {'source': self.source_string, 'count': 10, 'barcodes': ['code1', 'code2']}
+        data = {'source': self.source_string, 'count': 10, 'barcodes': barcodes}
         response = self.client.post(url, data=json.dumps(data), content_type='application/json')
         self.assertEqual(422, response.status_code, msg=response.content)
 
         content = json.loads(response.content.decode("ascii"))
         self.assertIn("errors", content)
-        self.assertIn('wrong number of barcodes given', content['errors'])
+        self.assertIn({"error": 'wrong number of barcodes given'}, content['errors'])
+
+        self.assertEqual(self.barcode_count, Barcode.objects.count())
+
+    def test_with_already_added_barcode(self):
+        duplicate_barcodes = [Barcode.objects.last().barcode]
+        new_barcodes = ['CODE1, CODE2']
+
+        url = reverse('barcode:register_batch')
+        data = {'source': self.source_string, 'count': 3, 'barcodes': duplicate_barcodes + new_barcodes}
+        response = self.client.post(url, data=json.dumps(data), content_type='application/json')
+        self.assertEqual(422, response.status_code, msg=response.content)
+
+        content = json.loads(response.content.decode("ascii"))
+        self.assertIn("errors", content)
+        self.assertIn({"error": 'barcodes already taken', 'barcodes': duplicate_barcodes}, content['errors'])
+
+        self.assertEqual(self.barcode_count, Barcode.objects.count())
+
+    def test_with_duplicate_barcodes(self):
+        duplicate_barcodes = ['BARCODE1'] + ["BARCODE2"]
+        barcodes = duplicate_barcodes * 2 + ['BARCODE3']
+
+        url = reverse('barcode:register_batch')
+        data = {'source': self.source_string, 'count': len(barcodes), 'barcodes': barcodes}
+        response = self.client.post(url, data=json.dumps(data), content_type='application/json')
+        self.assertEqual(422, response.status_code, msg=response.content)
+
+        content = json.loads(response.content.decode("ascii"))
+        self.assertIn("errors", content)
+        self.assertEqual('duplicate barcodes given', content['errors'][0]['error'])
+        self.assertSetEqual(set(duplicate_barcodes), set(content['errors'][0]['barcodes']))
+
+        self.assertEqual(self.barcode_count, Barcode.objects.count())
+
+    def test_with_specific_uuids(self):
+        uuids = [str(uuid.uuid4()), str(uuid.uuid4())]
+
+        url = reverse('barcode:register_batch')
+        data = {'source': self.source_string, 'count': 2, 'uuids': uuids}
+        response = self.client.post(url, data=json.dumps(data), content_type='application/json')
+        self.assertEqual(201, response.status_code, msg=response.content)
+
+        content = json.loads(response.content.decode("ascii"))
+        self.assertEqual(2, len(content))
+
+        for return_barcode, uuid_string in zip(content, uuids):
+            self.assertIn('barcode', return_barcode)
+            self.assertIn('uuid', return_barcode)
+
+            self.assertEqual(uuid_string, return_barcode['uuid'])
+
+        self.assertEqual(self.barcode_count + 2, Barcode.objects.count())
+
+    def test_with_wrong_number_of_uuids(self):
+        uuids = [str(uuid.uuid4()), str(uuid.uuid4())]
+
+        url = reverse('barcode:register_batch')
+        data = {'source': self.source_string, 'count': 10, 'uuids': uuids}
+        response = self.client.post(url, data=json.dumps(data), content_type='application/json')
+        self.assertEqual(422, response.status_code, msg=response.content)
+
+        content = json.loads(response.content.decode("ascii"))
+        self.assertIn("errors", content)
+        self.assertIn({"error": 'wrong number of uuids given'}, content['errors'])
+
+        self.assertEqual(self.barcode_count, Barcode.objects.count())
+
+    def test_with_already_added_uuid(self):
+        duplicate_uuids = [str(Barcode.objects.last().uuid)]
+        new_uuids = [str(uuid.uuid4()), str(uuid.uuid4())]
+
+        url = reverse('barcode:register_batch')
+        data = {'source': self.source_string, 'count': 3, 'uuids': duplicate_uuids + new_uuids}
+        response = self.client.post(url, data=json.dumps(data), content_type='application/json')
+        self.assertEqual(422, response.status_code, msg=response.content)
+
+        content = json.loads(response.content.decode("ascii"))
+        self.assertIn("errors", content)
+        self.assertIn({"error": 'uuids already taken', 'uuids': duplicate_uuids}, content['errors'])
+
+        self.assertEqual(self.barcode_count, Barcode.objects.count())
+
+    def test_with_duplicate_uuids(self):
+        duplicate_uuids = [str(uuid.uuid4()), str(uuid.uuid4())]
+        uuids = duplicate_uuids * 2 + [str(uuid.uuid4())]
+
+        url = reverse('barcode:register_batch')
+        data = {'source': self.source_string, 'count': len(uuids), 'uuids': uuids}
+        response = self.client.post(url, data=json.dumps(data), content_type='application/json')
+        self.assertEqual(422, response.status_code, msg=response.content)
+
+        content = json.loads(response.content.decode("ascii"))
+        self.assertIn("errors", content)
+        self.assertEqual('duplicate uuids given', content['errors'][0]['error'])
+        self.assertSetEqual(set(duplicate_uuids), set(content['errors'][0]['uuids']))
 
         self.assertEqual(self.barcode_count, Barcode.objects.count())

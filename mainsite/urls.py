@@ -18,5 +18,5 @@ from django.contrib import admin
 
 urlpatterns = [
     url(r'^admin/', include(admin.site.urls)),
-    url(r'^', include('barcode.urls', namespace='barcode'))
+    url(r'^v1/', include('barcode.urls', namespace='barcode'))
 ]
