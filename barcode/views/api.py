@@ -1,14 +1,14 @@
 from http import client
-import json
 import re
 from uuid import UUID
 
 from django.db import DatabaseError
 from django.db.transaction import atomic
-from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework.decorators import api_view
+from rest_framework.generics import ListAPIView, RetrieveAPIView
+from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
 
 from barcode.models import Source, Barcode, NumberGenerator
@@ -24,9 +24,57 @@ class BarcodeSerializer(serializers.ModelSerializer):
         fields = ('barcode', 'uuid', 'source')
 
 
-@api_view(['GET'])
-def source_list(request):
-    return Response({'sources': [source.name for source in Source.objects.all()]})
+class SourceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Source
+        fields = ('name',)
+
+
+class StandardPaginationClass(LimitOffsetPagination):
+    default_limit = 100
+
+
+class SourcesView(ListAPIView):
+    queryset = Source.objects.all()
+    serializer_class = SourceSerializer
+
+
+class BarcodeView(RetrieveAPIView):
+    serializer_class = BarcodeSerializer
+
+    def get_object(self):
+        return get_object_or_404(Barcode, barcode=self.kwargs['barcode'].upper())
+
+
+class BarcodesView(ListAPIView):
+    serializer_class = BarcodeSerializer
+    pagination_class = StandardPaginationClass
+
+    def get_queryset(self):
+        query_set = Barcode.objects.all()
+
+        barcode_string = self.request.REQUEST.get("barcode")
+        if barcode_string:
+            query_set = query_set.filter(barcode=barcode_string.upper().strip())
+
+        uuid_string = self.request.REQUEST.get("uuid")
+        if uuid_string:
+            try:
+                uuid = UUID(uuid_string)
+                query_set = query_set.filter(uuid=uuid)
+            except ValueError:
+                return []
+
+        source_string = self.request.REQUEST.get("source")
+        if source_string:
+            sources = Source.objects.filter(name=source_string.lower().strip())
+            if sources.count() == 1:
+                source = sources[0]
+                query_set = query_set.filter(source=source)
+            else:
+                return []
+
+        return query_set
 
 
 @atomic
@@ -158,7 +206,7 @@ def register_batch(request):
                 errors.append({"error": "malformed uuids", "uuids": malformed_uuids})
             if len(uuid_list) != len(set(uuid_list)):
                 errors.append({"error": "duplicate uuids given", "uuids": {uuid for uuid in uuid_list if
-                                        uuid_list.count(uuid) > 1}})
+                                                                           uuid_list.count(uuid) > 1}})
     else:
         uuid_list = [None] * count
 
@@ -202,53 +250,3 @@ def generate_barcode(barcode_string, uuid, source):
         barcode = Barcode.objects.create(barcode=barcode_string, source=source, uuid=uuid)
 
     return barcode
-
-
-@api_view(['GET'])
-def view_barcode(request, barcode_string):
-    barcode_string = barcode_string.upper().strip()
-    barcode = get_object_or_404(Barcode, barcode=barcode_string)
-    serializer = BarcodeSerializer(barcode)
-    return Response(serializer.data)
-
-
-@api_view(['GET'])
-def view_barcodes(request):
-    query_set = Barcode.objects.all()
-
-    barcode_string = request.REQUEST.get("barcode")
-    if barcode_string:
-        query_set = query_set.filter(barcode=barcode_string.upper().strip())
-
-    uuid_string = request.REQUEST.get("uuid")
-    if uuid_string:
-        try:
-            uuid = UUID(uuid_string)
-            query_set = query_set.filter(uuid=uuid)
-        except ValueError:
-            return Response({
-                'error': "malformed uuid",
-                'uuid': uuid_string,
-            }, status=client.BAD_REQUEST)
-
-    source_string = request.REQUEST.get("source")
-    if source_string:
-        sources = Source.objects.filter(name=source_string.lower().strip())
-        if sources.count() == 1:
-            source = sources[0]
-            query_set = query_set.filter(source=source)
-        else:
-            return Response({
-                "error": "invalid source",
-                "source": source_string
-            }, status=client.BAD_REQUEST)
-
-    count = query_set.count()
-
-    start_index = int(request.REQUEST.get('index') or 0)
-    length = int(request.REQUEST.get('length') or 100)
-
-    return Response({
-        "count": count,
-        "barcodes": [BarcodeSerializer(barcode).data for barcode in query_set[start_index:start_index+length]]
-    })

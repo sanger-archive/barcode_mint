@@ -67,8 +67,8 @@ class GetByUuidTests(APITestCase):
         self.assertEqual(200, response.status_code, response.content)
         json_list = json.loads(response.content.decode("ascii"))
 
-        self.assertEqual(1, len(json_list['barcodes']))
-        json_object = json_list['barcodes'][0]
+        self.assertEqual(1, len(json_list['results']))
+        json_object = json_list['results'][0]
 
         self.assertEqual(self.barcode, json_object['barcode'])
         self.assertEqual(self.uuid, uuid.UUID(json_object['uuid']))
@@ -82,14 +82,15 @@ class GetByUuidTests(APITestCase):
         self.assertEqual(200, response.status_code)
 
         json_list = json.loads(response.content.decode("ascii"))
-        self.assertEqual(0, len(json_list['barcodes']))
+        self.assertEqual(0, len(json_list['results']))
 
 
 class GetSourceListTest(APITestCase):
+    sources = ["mylims", "sscape", "cgap"]
+
     def setUp(self):
-        Source.objects.create(name="mylims")
-        Source.objects.create(name="sscape")
-        Source.objects.create(name="cgap")
+        for source in self.sources:
+            Source.objects.create(name=source)
 
     def test_can_list_sources(self):
         url = reverse('barcode:sources')
@@ -98,10 +99,9 @@ class GetSourceListTest(APITestCase):
         self.assertEqual(200, response.status_code)
 
         content = json.loads(response.content.decode("ascii"))
-        self.assertIn("sources", content)
 
-        sources = content["sources"]
-        self.assertListEqual(["mylims", "sscape", "cgap"], sources)
+        for source in self.sources:
+            self.assertIn({"name": source}, content)
 
 
 class RegisterBarcode(APITestCase):

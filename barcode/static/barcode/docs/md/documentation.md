@@ -45,7 +45,7 @@ Possible errors include:
 	"malformed uuid"
 	
 ## Registering multiple barcodes
-To register multiple barcodes at once send a POST request to `api/register/batch`. The request body should be a json object like this:
+To register multiple barcodes at once send a POST request to `/api/register/batch`. The request body should be a json object like this:
 
 	{
 		"source": "mylims",
@@ -139,13 +139,15 @@ The json object will look like:
 	}
 	
 ## Searching for barcodes
-To view all barcodes send a HTTP GET request to `/api/barcodes/`. You can optionally limit the search to specific critera by using the query parameters `barcode`, `uuid`, `source`, `index`, and `length`. `index` specifies where to start displaying barcodes from (default 0) and `length` specifies the number of barcodes to display (default 100).
+To view all barcodes send a HTTP GET request to `/api/barcodes/`. You can optionally limit the search to specific critera by using the query parameters `barcode`, `uuid`, `source`, `offset`, and `length`. `offset` specifies where to start displaying barcodes from (default 0) and `length` specifies the number of barcodes to display (default 100).
 
 This will return a list of json objects like this:
 
 	{
-		"count": 523,
-		"barcodes": [
+	    "count": 150,
+	    "next": "http://127.0.0.1:8000/v1/api/barcodes/?limit=100&offset=100&source=cgap",
+	    "previous": null,
+	    "results": [
 			{
 				"barcode": "CGAP62",
 				"uuid": "9de2c925-f2ca-4ce5-8444-217a6a46db60",
@@ -160,18 +162,22 @@ This will return a list of json objects like this:
 		]
 	}
 	
-`count` is the total number of barcodes that match the 	
+`count` is the total number of barcodes that match the search criteria.	
 		
 	
 ## Listing sources
-To list the sources send a HTTP GET request to `api/sources/`. This will return a list of valid sources.
+To list the sources send a HTTP GET request to `/api/sources/`. This will return a list of valid sources.
 
 Example json object:
 
-	{
-		"sources": [
-			"mylims",
-			"sscape",
-			"cgap",
-		]
-	}	
+	[
+		{
+			"name": "cgap"
+		},
+		{
+			"name": "mylims"
+		},
+		{
+			"name": "sscape"
+		}
+	]
