@@ -2,7 +2,6 @@ from http import client
 import re
 from uuid import UUID
 
-from django.db import DatabaseError
 from django.db.transaction import atomic
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
@@ -100,7 +99,8 @@ class BarcodeViewSet(RetrieveModelMixin,
             errors.append({"error": "invalid sources",
                            "sources": invalid_sources})
 
-        barcodes = [datum["barcode"].upper().strip() for datum in request_data if "barcode" in datum]
+        barcodes = [datum["barcode"].upper().strip() for datum in request_data if
+                    "barcode" in datum and datum['barcode']]
 
         # Test for duplicate barcodes
         if len(barcodes) != len(set(barcodes)):
@@ -117,7 +117,7 @@ class BarcodeViewSet(RetrieveModelMixin,
             errors.append({"error": "barcodes already taken",
                            "barcodes": added_barcodes})
 
-        uuids = [datum["uuid"] for datum in request_data if "uuid" in datum]
+        uuids = [datum["uuid"] for datum in request_data if "uuid" in datum and datum['uuid']]
 
         # Test for duplicate uuids
         if len(uuids) != len(set(uuids)):
@@ -134,7 +134,7 @@ class BarcodeViewSet(RetrieveModelMixin,
                 # Test for already added uuids
                 if Barcode.objects.filter(uuid=uuid).count() > 0:
                     added_uuids.append(uuid_string)
-            except ValueError:
+            except (ValueError, TypeError):
                 malformed_uuids.append(uuid_string)
 
         if malformed_uuids:
@@ -147,7 +147,8 @@ class BarcodeViewSet(RetrieveModelMixin,
 
         # Test for source and barcode/uuid
         count_and_data_indices = [i for i, datum in enumerate(request_data) if
-                                  "count" in datum and datum["count"] != 1 and ("barcode" in datum or "uuid" in datum)]
+                                  "count" in datum and int(datum["count"]) != 1 and (
+                                  "barcode" in datum or "uuid" in datum)]
         if count_and_data_indices:
             errors.append({"error": "cannot have both count and barcode or uuid",
                            "indices": count_and_data_indices})
@@ -156,24 +157,25 @@ class BarcodeViewSet(RetrieveModelMixin,
             # If we've had errors, return them now.
             return Response({"errors": errors}, status=client.UNPROCESSABLE_ENTITY)
         else:
-            # If we haven't actually generate the barcodes.
+            # We haven't got errors. Now actually generate the barcodes.
             response = []
 
-            for data in request_data:
+            for datum in request_data:
 
-                source = Source.objects.get(name=data.get('source'))
+                source = Source.objects.get(name=datum.get('source'))
 
-                count = data.get('count')
-                if count is not None and count != 1:
+                count = datum.get('count')
+                count = 1 if count is None else int(count)
+                if count != 1:
                     # We want multiple barcodes with one source
-                    response += [BarcodeSerializer(generate_barcode(None, None, source)).data for x in
-                                 range(int(count))]
+                    response += [BarcodeSerializer(generate_barcode(None, None, source)).data for _ in
+                                 range(count)]
                 else:
                     # We want a single barcode with the information provided.
-                    barcode_string = data.get('barcode')
+                    barcode_string = datum.get('barcode')
                     if barcode_string:
                         barcode_string = barcode_string.upper().strip()
-                    barcode = generate_barcode(barcode_string, data.get('uuid'), source)
+                    barcode = generate_barcode(barcode_string, datum.get('uuid'), source)
 
                     serializer = BarcodeSerializer(barcode)
                     response.append(serializer.data)

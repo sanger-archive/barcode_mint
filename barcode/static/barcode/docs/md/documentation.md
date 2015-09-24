@@ -33,19 +33,21 @@ If `barcode` and/or `uuid` is supplied it will generate a barcode with that `sou
 
 This will return a json list with an element for each barcode
 
-	[
-		{
-			"barcode": "BARCODE1",
-			"uuid": "54b25c77-abc3-44a5-800b-059aca50bb99",
-			"source": "mylims"
-		},
-		{
-			"barcode": "BARCODE2",
-			"uuid": "1bac5d19-09b6-4454-829e-7745db6f5929",
-			"source": "mylims"
-		},
-		...
-	]
+	{
+		"results": [
+			{
+				"barcode": "BARCODE1",
+				"uuid": "4c6717f9-e84d-4209-bb97-e3d7aa9cc856",
+				"source": "mylims"
+			},
+			{
+				"barcode": "BARCODE2",
+				"uuid": "1aec609a-1338-47d6-bb22-ecb95e2d16e2",
+				"source": "mylims"
+			}
+			...
+		]
+	}
 	
 If there is an error, none of the barcocdes will be registered and the return json will look like this:
 	
