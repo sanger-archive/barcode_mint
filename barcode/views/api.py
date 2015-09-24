@@ -32,6 +32,7 @@ class SourceSerializer(serializers.ModelSerializer):
 
 class StandardPaginationClass(LimitOffsetPagination):
     default_limit = 100
+    max_limit = 1000
 
 
 class SourcesViewSet(ReadOnlyModelViewSet):
@@ -60,46 +61,46 @@ class BarcodeViewSet(RetrieveModelMixin,
 
         barcode_string = self.request.query_params.get("barcode")
         if barcode_string:
-            query_set = query_set.filter(barcode=barcode_string.upper().strip())
+            query_set = query_set.filter(barcode__in=barcode_string.upper().strip().split(","))
 
         uuid_string = self.request.query_params.get("uuid")
         if uuid_string:
             try:
-                uuid = UUID(uuid_string)
-                query_set = query_set.filter(uuid=uuid)
+                uuids = [UUID(uuid) for uuid in uuid_string.split(",")]
+                query_set = query_set.filter(uuid__in=uuids)
             except ValueError:
                 return []
 
         source_string = self.request.query_params.get("source")
         if source_string:
-            sources = Source.objects.filter(name=source_string.lower().strip())
-            if sources.count() == 1:
-                source = sources[0]
-                query_set = query_set.filter(source=source)
-            else:
-                return []
+            query_set = query_set.filter(source__name__in=source_string.lower().split(","))
 
         return query_set
 
     @atomic()
     def create(self, request, *args, **kwargs):
 
+        request_data = request.data
+
+        if not isinstance(request_data, list):
+            request_data = [request_data]
+
         errors = []
 
         # Test for missing sources
-        missing_source_indices = [i for i, datum in enumerate(request.data) if "source" not in datum]
+        missing_source_indices = [i for i, datum in enumerate(request_data) if "source" not in datum]
         if missing_source_indices:
             errors.append({"error": "sources missing",
                            "indices": missing_source_indices})
 
-        sources = {datum["source"] for datum in request.data if "source" in datum}
+        sources = {datum["source"] for datum in request_data if "source" in datum}
 
         invalid_sources = {source for source in sources if Source.objects.filter(name=source).count() != 1}
         if invalid_sources:
             errors.append({"error": "invalid sources",
                            "sources": invalid_sources})
 
-        barcodes = [datum["barcode"].upper().strip() for datum in request.data if "barcode" in datum]
+        barcodes = [datum["barcode"].upper().strip() for datum in request_data if "barcode" in datum]
 
         # Test for duplicate barcodes
         if len(barcodes) != len(set(barcodes)):
@@ -116,7 +117,7 @@ class BarcodeViewSet(RetrieveModelMixin,
             errors.append({"error": "barcodes already taken",
                            "barcodes": added_barcodes})
 
-        uuids = [datum["uuid"] for datum in request.data if "uuid" in datum]
+        uuids = [datum["uuid"] for datum in request_data if "uuid" in datum]
 
         # Test for duplicate uuids
         if len(uuids) != len(set(uuids)):
@@ -145,7 +146,7 @@ class BarcodeViewSet(RetrieveModelMixin,
                            "uuids": added_uuids})
 
         # Test for source and barcode/uuid
-        count_and_data_indices = [i for i, datum in enumerate(request.data) if
+        count_and_data_indices = [i for i, datum in enumerate(request_data) if
                                   "count" in datum and datum["count"] != 1 and ("barcode" in datum or "uuid" in datum)]
         if count_and_data_indices:
             errors.append({"error": "cannot have both count and barcode or uuid",
@@ -158,7 +159,7 @@ class BarcodeViewSet(RetrieveModelMixin,
             # If we haven't actually generate the barcodes.
             response = []
 
-            for data in request.data:
+            for data in request_data:
 
                 source = Source.objects.get(name=data.get('source'))
 
@@ -177,7 +178,9 @@ class BarcodeViewSet(RetrieveModelMixin,
                     serializer = BarcodeSerializer(barcode)
                     response.append(serializer.data)
 
-            return Response(response, status=client.CREATED)
+            return Response({
+                "results": response
+            }, status=client.CREATED)
 
 
 def generate_barcode(barcode, uuid, source):

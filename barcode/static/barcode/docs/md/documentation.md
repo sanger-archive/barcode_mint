@@ -1,6 +1,15 @@
 ## Registering barcodes
 To register barcodes send a POST request to `/api/barcodes/`. The request body should be a json object like this:
 
+	{
+		"source": "mylims",
+		("count": 10,)
+		("barcode": "barcode1",)
+		("uuid": "uuid1",)
+	}
+
+or
+
 	[
 		{
 			"source": "mylims",
@@ -74,7 +83,7 @@ Possible errors include:
 		"barcodes": [...]
 	},
 	{
-		"error": "sourced missing",
+		"error": "sources missing",
 		"indices": [...]
 	},
 	{
@@ -111,6 +120,8 @@ The json object will look like:
 	
 ## Searching for barcodes
 To view all barcodes send a HTTP GET request to `/api/barcodes/`. You can optionally limit the search to specific critera by using the query parameters `barcode`, `uuid`, `source`, `offset`, and `length`. 
+
+`barcode`, `uuid` or `source` can either be a single element or a comma separated list.
 
 `offset` specifies where to start displaying barcodes from (default 0) and `length` specifies the number of barcodes to display (default 100).
 
