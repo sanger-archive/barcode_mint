@@ -6,7 +6,6 @@ from django.db import DatabaseError
 from django.db.transaction import atomic
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
-from rest_framework.decorators import api_view
 from rest_framework.mixins import RetrieveModelMixin, ListModelMixin, CreateModelMixin
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
@@ -82,96 +81,110 @@ class BarcodeViewSet(RetrieveModelMixin,
 
         return query_set
 
+    @atomic()
     def create(self, request, *args, **kwargs):
-        response = []
 
-        barcodes = [datum["barcode"] for datum in request.data if "barcode" in datum]
+        errors = []
 
+        # Test for missing sources
+        missing_source_indices = [i for i, datum in enumerate(request.data) if "source" not in datum]
+        if missing_source_indices:
+            errors.append({"error": "sources missing",
+                           "indices": missing_source_indices})
+
+        sources = {datum["source"] for datum in request.data if "source" in datum}
+
+        invalid_sources = {source for source in sources if Source.objects.filter(name=source).count() != 1}
+        if invalid_sources:
+            errors.append({"error": "invalid sources",
+                           "sources": invalid_sources})
+
+        barcodes = [datum["barcode"].upper().strip() for datum in request.data if "barcode" in datum]
+
+        # Test for duplicate barcodes
         if len(barcodes) != len(set(barcodes)):
-            response.append({"errors": [{"error": 'duplicate barcodes given',
-                                         "barcodes": {barcode for barcode in barcodes if
-                                                      barcodes.count(barcode) > 1}}]})
+            errors.append({"error": 'duplicate barcodes given',
+                           "barcodes": {barcode for barcode in barcodes if barcodes.count(barcode) > 1}})
+
+        malformed_barcodes = {barcode for barcode in barcodes if not re.match(r'^[0-9A-Z]{5,}$', barcode)}
+        if malformed_barcodes:
+            errors.append({"error": "malformed barcodes",
+                           "barcodes": malformed_barcodes})
+
+        added_barcodes = {barcode for barcode in barcodes if Barcode.objects.filter(barcode=barcode).count() > 0}
+        if added_barcodes:
+            errors.append({"error": "barcodes already taken",
+                           "barcodes": added_barcodes})
 
         uuids = [datum["uuid"] for datum in request.data if "uuid" in datum]
+
+        # Test for duplicate uuids
         if len(uuids) != len(set(uuids)):
-            response.append({"errors": [{"error": 'duplicate uuids given',
-                                         "uuids": {uuid for uuid in uuids if
-                                                      uuids.count(uuid) > 1}}]})
-        for data in request.data:
-            errors = []
+            errors.append({"error": 'duplicate uuids given',
+                           "uuids": {uuid for uuid in uuids if uuids.count(uuid) > 1}})
 
-            source_string = data.get('source')
-            if not source_string:
-                errors.append({"error": "source missing"})
-            else:
-                sources = Source.objects.filter(name=source_string.lower().strip())
-                if sources.count() != 1:
-                    errors.append({"error": "invalid source", "source": source_string})
+        malformed_uuids = []
+        added_uuids = []
+        for uuid_string in uuids:
+            # Test for malformed uuids
+            try:
+                uuid = UUID(uuid_string)
 
-            count = data.get("count")
-            if count:
-                if count != 1 and (data.get('barcode') or data.get('uuid')):
-                    errors.append("cannot specify count and barcode or uuid")
-            else:
-                barcode_string = data.get('barcode')
+                # Test for already added uuids
+                if Barcode.objects.filter(uuid=uuid).count() > 0:
+                    added_uuids.append(uuid_string)
+            except ValueError:
+                malformed_uuids.append(uuid_string)
 
-                if barcode_string:
-                    barcode_string = barcode_string.upper().strip()
-                    if not re.match(r'^[0-9A-Z]{5,}$', barcode_string):
-                        errors.append({"error": "malformed barcode", "barcode": barcode_string})
-                    if Barcode.objects.filter(barcode=barcode_string).count() > 0:
-                        errors.append({"error": "barcode already taken", "barcode": barcode_string})
+        if malformed_uuids:
+            errors.append({"error": "malformed uuid",
+                           "uuids": malformed_uuids})
 
-                uuid_string = data.get('uuid')
-                if uuid_string:
-                    try:
-                        uuid = UUID(uuid_string)
+        if added_uuids:
+            errors.append({"error": "uuids already taken",
+                           "uuids": added_uuids})
 
-                        if Barcode.objects.filter(uuid=uuid).count() > 0:
-                            errors.append({"error": "uuid already taken", "uuid": uuid_string})
+        # Test for source and barcode/uuid
+        count_and_data_indices = [i for i, datum in enumerate(request.data) if
+                                  "count" in datum and datum["count"] != 1 and ("barcode" in datum or "uuid" in datum)]
+        if count_and_data_indices:
+            errors.append({"error": "cannot have both count and barcode or uuid",
+                           "indices": count_and_data_indices})
 
-                    except ValueError:
-                        errors.append({"error": 'malformed uuid', "uuid": uuid_string})
-            if errors:
-                response.append({
-                    'errors': errors,
-                })
+        if errors:
+            # If we've had errors, return them now.
+            return Response({"errors": errors}, status=client.UNPROCESSABLE_ENTITY)
+        else:
+            # If we haven't actually generate the barcodes.
+            response = []
 
-        if not response:
             for data in request.data:
 
                 source = Source.objects.get(name=data.get('source'))
 
                 count = data.get('count')
-                if count:
+                if count is not None and count != 1:
+                    # We want multiple barcodes with one source
                     response += [BarcodeSerializer(generate_barcode(None, None, source)).data for x in
                                  range(int(count))]
                 else:
-                    try:
-
-                        barcode_string = data.get('barcode')
-                        if barcode_string:
-                            barcode_string = barcode_string.upper().strip()
-                        barcode = generate_barcode(barcode_string, data.get('uuid'), source)
-                    except DatabaseError as err:
-                        return Response({
-                            'errors': [str(err)],
-                        }, status=client.BAD_REQUEST)
+                    # We want a single barcode with the information provided.
+                    barcode_string = data.get('barcode')
+                    if barcode_string:
+                        barcode_string = barcode_string.upper().strip()
+                    barcode = generate_barcode(barcode_string, data.get('uuid'), source)
 
                     serializer = BarcodeSerializer(barcode)
                     response.append(serializer.data)
 
             return Response(response, status=client.CREATED)
-        else:
-            return Response([data for data in response if 'errors' in data], status=client.UNPROCESSABLE_ENTITY)
 
 
-@atomic()
 def generate_barcode(barcode, uuid, source):
     """
     Returns a barcode object that has been created in the database.
     Any Nones passed in as parameters will be generated for you.
-    :param barcode_string: None or an already validated, uppercased, stripped, and confirmed to be unique barcode.
+    :param barcode: None or an already validated, uppercased, stripped, and confirmed to be unique barcode.
     :param uuid: None, or an already validated and confirmed to be unique barcode.
     :param source: The Source database object for the barcode to be assigned to.
     :return: The generated barcode object

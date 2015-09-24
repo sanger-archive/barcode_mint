@@ -39,66 +39,63 @@ This will return a json list with an element for each barcode
 	]
 	
 If there is an error, none of the barcocdes will be registered and the return json will look like this:
-
-	[
-	    {
-	        "errors": [
-	            {
-	                "error": "malformed barcode",
-	                "barcode": "BAR*1"
-	            },
-	            {
-	                "error": "uuid already taken",
-	                "uuid": "ff94d3fd-dab5-4553-9e1a-17d2f424f385"
-	            }
-	        ]
-	    },
-	    {
-	        "errors": [
-	            {
-	                "error": "malformed barcode",
-	                "barcode": "BAR*2"
-	            },
-	            {
-	                "error": "uuid already taken",
-	                "uuid": "96890fa9-50de-484e-85a6-720c61bd912b"
-	            }
-	        ]
-	    }
-	]
+	
+	{
+		"errors": [
+			{
+				"error": "malformed barcodes",
+				"barcodes": [
+					"BAR*1",
+					"BAR*2"
+				]
+			},
+			{
+				"error": "uuids already taken",
+				"uuids": [
+					"146d410e-b456-4a22-9293-836d897cbcd8",
+					"0bd9a1a5-93f8-4d8a-9dba-575e41720681"
+				]
+			}
+		]
+	}
 	
 Possible errors include:
 
 	{
-		"error": "malformed barcode",
-		"barcode": ...
+		"error": "malformed barcodes",
+		"barcodes": [...]
 	},
 	{
-		"error": "barcode already taken",
-		"barcode": ...
+		"error": "barcodes already taken",
+		"barcodes": [...]
 	},
 	{
 		"error": "duplicate barcodes given",
 		"barcodes": [...]
 	},
 	{
-		"error": "source missing"
+		"error": "sourced missing",
+		"indices": [...]
 	},
 	{
-		"error": "invalid source",
-		"source": ...
+		"error": "invalid sources",
+		"sources": [...]
 	},
 	{
-		"error": "uuid already taken",
-		"uuid": ...
+		"error": "uuids already taken",
+		"uuids": [...]
 	},
 	{
-		"error": "malformed uuid",
-		"uuid": ...
+		"error": "malformed uuids",
+		"uuids": [...]
 	},
 	{
 		"error": "duplicate uuids given",
 		"uuids": [...]
+	},
+	{
+		"error": "cannot have both count and barcode or uuid",
+		"indices": [...]
 	}
 	
 ## Viewing a barcode
