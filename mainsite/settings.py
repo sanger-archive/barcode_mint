@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/1.8/ref/settings/
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 import os
+
 from mainsite import environment
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -26,7 +27,7 @@ SECRET_KEY = environment.SECRET_KEY
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = environment.DEBUG
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = []
 
 
 # Application definition
@@ -78,7 +79,7 @@ WSGI_APPLICATION = 'mainsite.wsgi.application'
 DATABASES = environment.DATABASES
 
 
-#Internationalization
+# Internationalization
 # https://docs.djangoproject.com/en/1.8/topics/i18n/
 
 LANGUAGE_CODE = 'en-gb'

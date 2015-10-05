@@ -162,12 +162,11 @@ class GetBySouceTest(APITestCase):
         json_object = json.loads(response.content.decode("ascii"))
         self.assertEqual(2, len(json_object['results']), msg=json_object)
 
-        for json_barcode, barcode, uuid, source_name in zip(json_object['results'], self.barcodes, self.uuids, self.source_names):
-
+        for json_barcode, barcode, uuid, source_name in zip(json_object['results'], self.barcodes, self.uuids,
+                                                            self.source_names):
             self.assertEqual(barcode, json_barcode['barcode'])
             self.assertEqual(uuid, json_barcode['uuid'])
             self.assertEqual(source_name, json_barcode['source'])
-
 
 
 class GetSourceListTest(APITestCase):

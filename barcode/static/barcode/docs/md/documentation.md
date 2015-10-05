@@ -26,7 +26,7 @@ or
 		...
 	]
 	
-`count`, `barcodes`, and `uuids`	are optional. But if `count` is supplied neither `barcode` nor `uuid` can be.
+`count`, `barcodes`, and `uuids` are optional. But if `count` is supplied neither `barcode` nor `uuid` can be.
 
 For each element in the list, if `count` is supplied it will generate that many barcodes with the source supplied.
 If `barcode` and/or `uuid` is supplied it will generate a barcode with that `source`, `barcode`, and `uuid`.
@@ -155,7 +155,7 @@ This will return a list of json objects like this:
 To list the sources send a HTTP GET request to `/api/sources/`. This will return a list of valid sources.
 
 Example json object:
-
+	
 	[
 		{
 			"name": "cgap"
