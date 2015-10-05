@@ -1,47 +1,60 @@
 ## Registering barcodes
-To register barcodes send a POST request to `/api/barcodes/`. The request body should be a json object like this:
+To register barcodes send a POST request to `/api/barcodes/`. The request body should be a list of barcode objects for a single barcode object.
+
+e.g:
 
 	{
 		"source": "mylims",
-		("count": 10,)
-		("barcode": "barcode1",)
-		("uuid": "uuid1",)
+		"body": "plate"
 	}
 
 or
 
 	[
 		{
-			"source": "mylims",
-			("count": 10,)
-			("barcode": "barcode1",)
-			("uuid": "uuid1",)
+		"source": "mylims",
+		"body": "plate"
 		},
 		{
 			"source": "mylims",
-			("count": 10,)
-			("barcode": "barcode2",)
-			("uuid": "uuid2",)
+			"body": "tube"
 		},
 		...
 	]
 	
-`count`, `barcodes`, and `uuids` are optional. But if `count` is supplied neither `barcode` nor `uuid` can be.
+A barcode object should look like this:
+	
+	{
+		"source": "mylims",
+		"body": "plate",
+		"barcode": "2000333944",
+		"uuid": "4c6717f9-e84d-4209-bb97-e3d7aa9cc856",
+		"count": 4
+	}
 
-For each element in the list, if `count` is supplied it will generate that many barcodes with the source supplied.
-If `barcode` and/or `uuid` is supplied it will generate a barcode with that `source`, `barcode`, and `uuid`.
+with the following constraints:
+* `source` is required, the rest are optional.
+* If `count` is supplied neither `barcode` nor `uuid` can be.
+* Only `body` or `barcode` can be supplied. Not both.
+* `barcode` must be 5 characters or longer.
+* `barcode` and `body` can only have letters, numbers, and the symbols `-`, `_`, `:`
+
+The suggested method is to supply `body`. This will generate a barcode in the following format, `SOURCE:BODY:NUMBER` where `SOURCE` and `BODY` are supplied and `NUMBER` is a set of digits to ensure the barcode is unique.
+If `body` is not supplied it will be left blank. e.g: `CGAP::42`
+
+If `barcode` is supplied it will attempt to store that specific barcode, but may fail if the barcode is already taken.
 
 This will return a json list with an element for each barcode
 
 	{
 		"results": [
 			{
-				"barcode": "BARCODE1",
+				"barcode": "MYLIMS:PLATE:0",
 				"uuid": "4c6717f9-e84d-4209-bb97-e3d7aa9cc856",
 				"source": "mylims"
 			},
 			{
-				"barcode": "BARCODE2",
+				"barcode": "MYLIMS:PLATE:1",
 				"uuid": "1aec609a-1338-47d6-bb22-ecb95e2d16e2",
 				"source": "mylims"
 			}
@@ -49,7 +62,27 @@ This will return a json list with an element for each barcode
 		]
 	}
 	
-If there is an error, none of the barcocdes will be registered and the return json will look like this:
+###Example requests:
+
+	{
+		"source": "mylims",
+		"body": "plate",
+		"count": 5
+	}
+` `
+
+	[
+		{
+			"source": "gclp",
+			"barocde": "1220000000123"
+		},
+		{
+			"source": "gclp",
+			"barocde": "1220000000125"
+		}
+	]
+	
+If there is an error, none of the barcodes will be registered and the return json will look like this:
 	
 	{
 		"errors": [
@@ -73,6 +106,19 @@ If there is an error, none of the barcocdes will be registered and the return js
 Possible errors include:
 
 	{
+		"error": "invalid sources",
+		"sources": [...]
+	},
+	
+	{
+		"error": "missing sources",
+		"indices": [...]
+	},
+	{
+		"error": "malformed bodies",
+		"bodies": [...]
+	},
+	{
 		"error": "malformed barcodes",
 		"barcodes": [...]
 	},
@@ -85,16 +131,8 @@ Possible errors include:
 		"barcodes": [...]
 	},
 	{
-		"error": "sources missing",
+		"error": "body and barcode given",
 		"indices": [...]
-	},
-	{
-		"error": "invalid sources",
-		"sources": [...]
-	},
-	{
-		"error": "uuids already taken",
-		"uuids": [...]
 	},
 	{
 		"error": "malformed uuids",
@@ -105,7 +143,11 @@ Possible errors include:
 		"uuids": [...]
 	},
 	{
-		"error": "cannot have both count and barcode or uuid",
+		"error": "uuids already taken",
+		"uuids": [...]
+	},
+	{
+		"error": "count and barcode or uuid given",
 		"indices": [...]
 	}
 	
@@ -115,7 +157,7 @@ To view a information about a barcode sent a HTTP GET request to `/api/barcodes/
 The json object will look like:
 	
 	{
-		"barcode": "CGAP62",
+		"barcode": "CGAP:SARA:62",
 		"uuid": "9de2c925-f2ca-4ce5-8444-217a6a46db60",
 		"source": "cgap",
 	}
@@ -135,12 +177,12 @@ This will return a list of json objects like this:
 	    "previous": null,
 	    "results": [
 			{
-				"barcode": "CGAP62",
+				"barcode": "CGAP:SARA:62",
 				"uuid": "9de2c925-f2ca-4ce5-8444-217a6a46db60",
 				"source": "cgap",
 			},
 			{
-				"barcode": "CGAP63",
+				"barcode": "CGAP:SARA:63",
 				"uuid": "54b25c77-abc3-44a5-800b-059aca50bb99",
 				"source": "cgap",
 			},
