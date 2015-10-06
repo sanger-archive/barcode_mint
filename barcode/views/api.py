@@ -65,7 +65,7 @@ class BarcodeViewSet(RetrieveModelMixin,
         if barcode_string:
             queries = None
             for barcode in barcode_string.split(','):
-                query = Q(barcode__icontains=barcode)
+                query = Q(barcode__contains=barcode.upper())
                 if queries:
                     queries |= query
                 else:
@@ -99,7 +99,7 @@ class BarcodeViewSet(RetrieveModelMixin,
         # Sources
         sources = {data['source'] for data in request_data if 'source' in data}
 
-        invalid_sources = [source for source in sources if Source.objects.filter(name__iexact=source).count() != 1]
+        invalid_sources = [source for source in sources if Source.objects.filter(name=source.lower()).count() != 1]
         if invalid_sources:
             errors.append({"error": "invalid sources", "sources": invalid_sources})
 
@@ -123,7 +123,7 @@ class BarcodeViewSet(RetrieveModelMixin,
             errors.append({"error": "malformed barcodes", "barcodes": malformed_barcodes})
 
         taken_barcodes = [barcode for barcode in specific_barcodes if
-                          Barcode.objects.filter(barcode__iexact=barcode).count() > 0]
+                          Barcode.objects.filter(barcode=barcode.upper()).count() > 0]
         if taken_barcodes:
             errors.append({"error": "barcodes already taken", "barcodes": taken_barcodes})
 
@@ -161,9 +161,21 @@ class BarcodeViewSet(RetrieveModelMixin,
                 errors.append({"error": "duplicate uuids given", "uuids": duplicate_uuids})
 
         # Counts
-        count_and_barcode_or_uuid_indices = [i for i, data in enumerate(request_data) if
-                                             'count' in data and data['count'] != 1 and (
-                                                 'barcode' in data or 'uuid' in data)]
+        invalid_counts = []
+        count_and_barcode_or_uuid_indices = []
+        for i, data in enumerate(request_data):
+            if 'count' in data:
+                try:
+                    int_count = int(data['count'])
+                    if int_count < 1:
+                        invalid_counts.append(i)
+                    if int_count != 1 and ('barcode' in data or 'uuid' in data):
+                        count_and_barcode_or_uuid_indices.append(i)
+                except ValueError:
+                    invalid_counts.append(i)
+
+        if invalid_counts:
+            errors.append({"error": "invalid counts", "indices": invalid_counts})
         if count_and_barcode_or_uuid_indices:
             errors.append({"error": "count and barcode or uuid given", "indices": count_and_barcode_or_uuid_indices})
 
@@ -182,38 +194,38 @@ class BarcodeViewSet(RetrieveModelMixin,
                 if 'barcode' in data:
                     if 'uuid' in data:
                         barcode = Barcode.objects.create(
-                            source=Source.objects.get(name__iexact=data['source']),
+                            source=Source.objects.get(name=data['source'].lower()),
                             barcode=data['barcode'].upper(),
                             uuid=UUID(data['uuid'])
                         )
                     else:
                         barcode = Barcode.objects.create(
-                            source=Source.objects.get(name__iexact=data['source']),
+                            source=Source.objects.get(name=data['source'].lower()),
                             barcode=data['barcode'].upper()
                         )
 
                     barcodes.append(barcode)
                 else:
-                    for _ in range(data['count'] if 'count' in data else 1):
+                    for _ in range(int(data['count']) if 'count' in data else 1):
                         body = data['body'] if 'body' in data else ""
                         counter = Barcode.objects.filter(
-                            barcode__istartswith=data['source'] + SEPARATOR + body + SEPARATOR).count()
+                            barcode__startswith=(data['source'] + SEPARATOR + body + SEPARATOR).upper()).count()
 
                         barcode_string = None
                         while barcode_string is None or Barcode.objects.filter(
-                                barcode__iexact=barcode_string).count() > 0:
+                                barcode=barcode_string.upper()).count() > 0:
                             barcode_string = data['source'] + SEPARATOR + body + SEPARATOR + str(counter)
                             counter += 1
 
                         if 'uuid' in data:
                             barcode = Barcode.objects.create(
-                                source=Source.objects.get(name__iexact=data['source']),
+                                source=Source.objects.get(name=data['source'].lower()),
                                 barcode=barcode_string.upper(),
                                 uuid=UUID(data['uuid'])
                             )
                         else:
                             barcode = Barcode.objects.create(
-                                source=Source.objects.get(name__iexact=data['source']),
+                                source=Source.objects.get(name=data['source'].lower()),
                                 barcode=barcode_string.upper()
                             )
 

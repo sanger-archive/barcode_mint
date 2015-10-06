@@ -446,9 +446,44 @@ class RegisterBarcode(APITestCase):
         }
 
         (status, results, errors) = self.make_request()
+        self.assertEqual(422, status)
+
+        self.assertIn({"error": "invalid counts", "indices": [0]}, errors)
+
+    def test_with_zero_count(self):
+        self.data = {
+            "source": self.source_string,
+            "count": 0
+        }
+
+        (status, results, errors) = self.make_request()
+        self.assertEqual(422, status)
+
+        self.assertIn({"error": "invalid counts", "indices": [0]}, errors)
+
+    def test_with_letter_count(self):
+        self.data = {
+            "source": self.source_string,
+            "count": "g"
+        }
+
+        (status, results, errors) = self.make_request()
+        self.assertEqual(422, status)
+
+        self.assertIn({"error": "invalid counts", "indices": [0]}, errors)
+
+    def test_with_string_count(self):
+
+        self.data = {
+            "source": self.source_string,
+            "count": "5"
+        }
+
+        (status, results, errors) = self.make_request()
         self.assertEqual(201, status)
 
-        self.assertEqual(0, len(results))
+        self.assertIsNotNone(results)
+        self.assertEqual(5, len(results))
 
     def test_with_barcode_and_body(self):
         self.data = {
