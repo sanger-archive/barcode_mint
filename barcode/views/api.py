@@ -128,7 +128,7 @@ class BarcodeViewSet(RetrieveModelMixin,
             errors.append({"error": "barcodes already taken", "barcodes": taken_barcodes})
 
         if len(specific_barcodes) != len(set(specific_barcodes)):
-            duplicate_barcodes = [barcode for barcode in specific_barcodes if specific_barcodes.count(barcode) > 1]
+            duplicate_barcodes = {barcode for barcode in specific_barcodes if specific_barcodes.count(barcode) > 1}
             if duplicate_barcodes:
                 errors.append({"error": "duplicate barcodes given", "barcodes": duplicate_barcodes})
 
@@ -146,7 +146,7 @@ class BarcodeViewSet(RetrieveModelMixin,
             try:
                 uuid = UUID(uuid_string)
                 uuids.append(uuid)
-                if Barcode.objects.filter(uuid=uuid).count > 0:
+                if Barcode.objects.filter(uuid=uuid).count() > 0:
                     taken_uuids.append(uuid_string)
             except ValueError:
                 malformed_uuids.append(uuid_string)
@@ -156,14 +156,14 @@ class BarcodeViewSet(RetrieveModelMixin,
             errors.append({"error": "uuids already taken", "uuids": taken_uuids})
 
         if len(uuids) != len(set(uuids)):
-            duplicate_uuids = [uuid for uuid in uuids if uuids.count(uuid) > 1]
+            duplicate_uuids = {uuid for uuid in uuids if uuids.count(uuid) > 1}
             if duplicate_uuids:
                 errors.append({"error": "duplicate uuids given", "uuids": duplicate_uuids})
 
         # Counts
         count_and_barcode_or_uuid_indices = [i for i, data in enumerate(request_data) if
                                              'count' in data and data['count'] != 1 and (
-                                             'barcode' in data or 'uuid' in data)]
+                                                 'barcode' in data or 'uuid' in data)]
         if count_and_barcode_or_uuid_indices:
             errors.append({"error": "count and barcode or uuid given", "indices": count_and_barcode_or_uuid_indices})
 
@@ -219,4 +219,5 @@ class BarcodeViewSet(RetrieveModelMixin,
 
                         barcodes.append(barcode)
 
-            return Response({"results": [BarcodeSerializer(barcode).data for barcode in barcodes]}, status=client.CREATED)
+            return Response({"results": [BarcodeSerializer(barcode).data for barcode in barcodes]},
+                            status=client.CREATED)

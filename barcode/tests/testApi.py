@@ -323,6 +323,38 @@ class RegisterBarcode(APITestCase):
 
         self.assertEqual(self.barcode_count + 0, Barcode.objects.count())
 
+    def test_with_duplicate_uuids(self):
+        data = [{
+            "source": self.source_string,
+            "uuid": str(uuid4())
+        }]*2
+
+        response = self.client.post(self.url, data=json.dumps(data), content_type='application/json')
+        self.assertEqual(422, response.status_code)
+
+        content = json.loads(response.content.decode("ascii"))
+
+        self.assertIn("errors", content)
+        self.assertIn({"error": "duplicate uuids given", "uuids": [data[0]['uuid']]}, content['errors'])
+
+        self.assertEqual(self.barcode_count + 0, Barcode.objects.count())
+
+    def test_with_already_taken_uuid(self):
+        data = {
+            "source": self.source_string,
+            "uuid": str(Barcode.objects.last().uuid)
+        }
+
+        response = self.client.post(self.url, data=json.dumps(data), content_type='application/json')
+        self.assertEqual(422, response.status_code)
+
+        content = json.loads(response.content.decode("ascii"))
+
+        self.assertIn("errors", content)
+        self.assertIn({"error": "uuids already taken", "uuids": [data['uuid']]}, content['errors'])
+
+        self.assertEqual(self.barcode_count + 0, Barcode.objects.count())
+
     def test_with_missing_source(self):
         data = [
             {
@@ -382,7 +414,7 @@ class RegisterBarcode(APITestCase):
         content = json.loads(response.content.decode("ascii"))
 
         self.assertIn("errors", content)
-        self.assertIn({"error": "duplicate barcodes given", "barcodes": [datum['barcode'].upper() for datum in data]},
+        self.assertIn({"error": "duplicate barcodes given", "barcodes": list({datum['barcode'].upper() for datum in data})},
                       content['errors'])
 
         self.assertEqual(self.barcode_count + 0, Barcode.objects.count())
@@ -455,3 +487,65 @@ class RegisterBarcode(APITestCase):
 
         self.assertEqual(self.barcode_count + 0, Barcode.objects.count())
 
+    def test_with_barcode_and_body(self):
+        data = {
+            "source": self.source_string,
+            "body": "sara",
+            "barcode": "cgap:sara:10"
+        }
+
+        response = self.client.post(self.url, data=json.dumps(data), content_type="application/json")
+        self.assertEqual(422, response.status_code)
+
+        content = json.loads(response.content.decode('ascii'))
+
+        self.assertIn("errors", content)
+        self.assertIn({"error": "body and barcode given", "indices": [0]}, content['errors'])
+
+        self.assertEqual(self.barcode_count + 0, Barcode.objects.count())
+
+    def test_with_skipping_barcode(self):
+        Barcode.objects.create(
+            source=Source.objects.get(name=self.source_string),
+            barcode="MYLIMS:TESTING:2"
+        )
+
+        data = {
+            "source": self.source_string,
+            "body": "testing",
+            "count": 2
+        }
+
+        response = self.client.post(self.url, data=json.dumps(data), content_type="application/json")
+        self.assertEqual(201, response.status_code)
+
+        content = json.loads(response.content.decode('ascii'))
+        self.assertEqual(2, len(content['results']))
+
+        barcodes = [result['barcode'] for result in content['results']]
+
+        self.assertListEqual(["MYLIMS:TESTING:1", "MYLIMS:TESTING:3"], barcodes)
+
+        self.assertEqual(self.barcode_count + 3, Barcode.objects.count())
+
+    def test_with_body_with_separator(self):
+        Barcode.objects.create(
+            source=Source.objects.get(name=self.source_string),
+            barcode="MYLIMS:TESTING:0"
+        )
+
+        data = {
+            "source": self.source_string,
+            "body": "TESTING:0"
+        }
+
+        response = self.client.post(self.url, data=json.dumps(data), content_type="application/json")
+        self.assertEqual(201, response.status_code)
+
+        content = json.loads(response.content.decode('ascii'))
+        self.assertEqual(1, len(content['results']))
+        barcode = content['results'][0]
+
+        self.assertEqual("MYLIMS:TESTING:0:0", barcode['barcode'])
+
+        self.assertEqual(self.barcode_count + 2, Barcode.objects.count())
