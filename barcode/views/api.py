@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from http import client
 from uuid import UUID
 import re
@@ -6,6 +7,7 @@ from django.db.models import Q
 from django.db.transaction import atomic
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
+from rest_framework.metadata import BaseMetadata
 from rest_framework.mixins import RetrieveModelMixin, ListModelMixin, CreateModelMixin
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
@@ -47,12 +49,59 @@ class SourcesViewSet(ReadOnlyModelViewSet):
     # pagination_class = StandardPaginationClass
 
 
+class BarcodeMetaData(BaseMetadata):
+    def determine_metadata(self, request, view):
+        return OrderedDict(
+            name=view.get_view_name(),
+            description=view.get_view_description(),
+            renders=[
+                "application/json",
+            ],
+            parses=[
+                "application/json",
+            ],
+            actions={
+                "POST": OrderedDict(
+                    source={
+                        "type": "field",
+                        "required": True,
+                        "read_only": False,
+                        "max_length": 10,
+                    },
+                    body={
+                        "type": "string",
+                        "required": False,
+                        "read_only": False,
+                        "max_length": 128,
+                    },
+                    barcode={
+                        "type": "string",
+                        "required": False,
+                        "read_only": False,
+                        "max_length": 128,
+                    },
+                    uuid={
+                        "type": "uuid",
+                        "required": False,
+                        "read_only": False,
+                    },
+                    count={
+                        "type": "integer",
+                        "required": False,
+                        "read_only": False,
+                    }
+                )
+            }
+        )
+
+
 class BarcodeViewSet(RetrieveModelMixin,
                      ListModelMixin,
                      CreateModelMixin,
                      GenericViewSet):
     serializer_class = BarcodeSerializer
     pagination_class = StandardPaginationClass
+    metadata_class = BarcodeMetaData
 
     def retrieve(self, request, *args, **kwargs):
         barcode = get_object_or_404(Barcode, barcode=kwargs['pk'].upper())
@@ -187,6 +236,7 @@ class BarcodeViewSet(RetrieveModelMixin,
             for data in request_data:
                 # We know the source is valid now.
                 # We know the specific barcodes are unique and not duplicates.
+                # We know the count is a positive integer.
                 # We know count is equal to 1 if barcode or uuid is given.
                 # We know the uuid is valid.
                 # We know the barcode is valid.
