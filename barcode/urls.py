@@ -5,7 +5,7 @@ from barcode.views import api, docs
 
 __author__ = 'rf9'
 
-router = routers.SimpleRouter(trailing_slash=False)
+router = routers.SimpleRouter()
 router.register(r'api/barcodes', api.BarcodeViewSet, base_name='barcode')
 router.register(r'api/sources', api.SourcesViewSet)
 
