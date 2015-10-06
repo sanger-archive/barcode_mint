@@ -1,5 +1,5 @@
 ## Registering barcodes
-To register barcodes send a POST request to `/api/barcodes/`. The request body should be a list of barcode objects for a single barcode object.
+To register barcodes send a POST request to `/api/barcodes/` (note the trailing `/`). The request body should be a list of barcode objects for a single barcode object.
 
 e.g:
 
