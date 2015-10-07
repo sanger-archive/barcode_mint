@@ -159,7 +159,7 @@ class BarcodeViewSet(RetrieveModelMixin,
         # Bodies
         bodies = {data['body'] for data in request_data if 'body' in data}
 
-        malformed_body = [body for body in bodies if not re.match(r'^[0-9A-Z:-_]*$', body.upper())]
+        malformed_body = [body for body in bodies if not re.match(r'^[0-9A-Z:_-]*$', body.upper())]
         if malformed_body:
             errors.append({"error": "malformed bodies", "bodies": malformed_body})
 
@@ -167,7 +167,7 @@ class BarcodeViewSet(RetrieveModelMixin,
         specific_barcodes = [data['barcode'].upper() for data in request_data if 'barcode' in data]
 
         malformed_barcodes = [barcode for barcode in specific_barcodes if
-                              not re.match(r'^[0-9A-Z:-_]{5,}$', barcode)]
+                              not re.match(r'^[0-9A-Z:_-]{5,}$', barcode)]
         if malformed_barcodes:
             errors.append({"error": "malformed barcodes", "barcodes": malformed_barcodes})
 

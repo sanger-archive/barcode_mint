@@ -225,7 +225,7 @@ class RegisterBarcode(APITestCase):
     def test_with_body(self):
         self.data = {
             "source": self.source_string,
-            "body": "barcode_body"
+            "body": "bar:code_bod-y"
         }
 
         (status, results, errors) = self.make_request()
