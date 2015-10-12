@@ -11,7 +11,6 @@ router.register(r'api/barcodes', api.BarcodeViewSet, base_name='barcode')
 router.register(r'api/sources', api.SourcesViewSet)
 
 urlpatterns = [
-    # URLs for the documentation
-    url(r'^docs/$', docs.main, name='docs'),
-] + router.urls
-
+                  # URLs for the documentation
+                  url(r'^docs/$', docs.main, name='docs'),
+              ] + router.urls

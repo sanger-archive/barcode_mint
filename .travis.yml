@@ -1,0 +1,14 @@
+language: python
+python:
+  - "3.2"
+  - "3.3"
+  - "3.4"
+  - "3.5"
+  - "3.5-dev" # 3.5 development branch
+env:
+  - SECRET=secret DEBUG=True
+  - SECRET=secret DEBUG=False
+install:
+  - pip install -r requirements.txt
+script:
+  - python manage.py test
