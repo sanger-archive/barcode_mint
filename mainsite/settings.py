@@ -23,9 +23,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = os.environ['SECRET']
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ['DEBUG']
+DEBUG = os.environ['DEBUG'] == 'True'
 
-ALLOWED_HOSTS = ['.internal.sanger.ac.uk.']
+ALLOWED_HOSTS = ['.internal.sanger.ac.uk']
 
 
 # Application definition
@@ -72,7 +72,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'mainsite.wsgi.application'
 
-if os.environ['DB_LOCAL']:
+if os.environ['DB_LOCAL'] == 'True':
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
