@@ -25,7 +25,7 @@ SECRET_KEY = os.environ['SECRET']
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ['DEBUG']
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['.internal.sanger.ac.uk.']
 
 
 # Application definition
@@ -72,12 +72,16 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'mainsite.wsgi.application'
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+if os.environ['DB_LOCAL']:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        }
     }
-}
+else:
+    from mainsite import config
+    DATABASES = config.DATABASES
 
 
 # Internationalization

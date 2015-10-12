@@ -1,4 +1,4 @@
-/mainsite/environment.py
+/mainsite/config.py
 /db.sqlite3
 /venv
 /.idea
