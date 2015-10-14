@@ -1,4 +1,5 @@
 import json
+import string
 from uuid import uuid4, UUID
 
 from django.core.urlresolvers import reverse
@@ -197,11 +198,11 @@ class RegisterBarcode(APITestCase):
 
         Barcode.objects.create(
             source=source,
-            barcode="MYLIMS:TESTING:0"
+            barcode="MYLIMS:TESTING:08"
         )
         Barcode.objects.create(
             source=source,
-            barcode="MYLIMS:TESTING:3"
+            barcode="MYLIMS:TESTING:33"
         )
 
         self.barcode_count = Barcode.objects.count()
@@ -236,7 +237,7 @@ class RegisterBarcode(APITestCase):
         barcode = results[0]
 
         self.assertEqual(self.source_string, barcode['source'])
-        self.assertEqual((self.source_string + ":" + self.data['body'] + ":0").upper(), barcode['barcode'])
+        self.assertIn((self.source_string + ":" + self.data['body'] + ":0").upper(), barcode['barcode'])
         self.assertIn("uuid", barcode)
 
     def test_with_malformed_body(self):
@@ -296,7 +297,7 @@ class RegisterBarcode(APITestCase):
 
         for i, barcode in enumerate(results):
             self.assertEqual(self.source_string, barcode['source'])
-            self.assertEqual((self.source_string + ":" + self.data['body'] + ":" + str(i)).upper(), barcode['barcode'])
+            self.assertIn((self.source_string + ":" + self.data['body'] + ":" + str(i)).upper(), barcode['barcode'])
             self.assertIn("uuid", barcode)
 
     def test_with_uuid(self):
@@ -313,7 +314,7 @@ class RegisterBarcode(APITestCase):
         barcode = results[0]
 
         self.assertEqual(self.source_string, barcode['source'])
-        self.assertEqual((self.source_string + ":" + self.data['body'] + ":0").upper(), barcode['barcode'])
+        self.assertIn((self.source_string + ":" + self.data['body'] + ":0").upper(), barcode['barcode'])
         self.assertEqual(self.data['uuid'], barcode['uuid'])
 
     def test_with_malformed_uuid(self):
@@ -511,7 +512,8 @@ class RegisterBarcode(APITestCase):
 
         barcodes = [result['barcode'] for result in results]
 
-        self.assertListEqual(["MYLIMS:TESTING:2", "MYLIMS:TESTING:4"], barcodes)
+        for expected, actual in zip(["MYLIMS:TESTING:2", "MYLIMS:TESTING:4"], barcodes):
+            self.assertIn(expected, actual)
 
     def test_with_body_with_separator(self):
         self.data = {
@@ -525,4 +527,48 @@ class RegisterBarcode(APITestCase):
         self.assertEqual(1, len(results))
         barcode = results[0]
 
-        self.assertEqual("MYLIMS:TESTING:0:0", barcode['barcode'])
+        self.assertIn("MYLIMS:TESTING:0:0", barcode['barcode'])
+
+    def test_checksum(self):
+        self.data = {
+            "source": self.source_string,
+            "body": "check-sum_test"
+        }
+
+        (status, results, errors) = self.make_request()
+        self.assertEqual(201, status)
+
+        self.assertEqual(1, len(results))
+        barcode_object = results[0]
+        barcode = barcode_object['barcode']
+
+        alphabet = string.digits + string.ascii_uppercase + ":_-"
+
+        numbers = [alphabet.index(x) for x in barcode]
+        positions = [x for x in range(len(numbers), 0, -1)]
+
+        total = sum(x * y for x, y in zip(numbers, positions))
+
+        self.assertEqual(0, total % 10)
+
+    def test_with_extended_alphabet(self):
+        self.data = {
+            "source": self.source_string,
+            "body": "check-sum_test"
+        }
+
+        (status, results, errors) = self.make_request()
+        self.assertEqual(201, status)
+
+        self.assertEqual(1, len(results))
+        barcode_object = results[0]
+        barcode = barcode_object['barcode']
+
+        alphabet = string.digits + string.ascii_uppercase + ":_-*.!"
+
+        numbers = [alphabet.index(x) for x in barcode]
+        positions = [x for x in range(len(barcode), 0, -1)]
+
+        total = sum(x * y for x, y in zip(numbers, positions))
+
+        self.assertEqual(0, total % 10)

@@ -157,7 +157,7 @@ To view a information about a barcode sent a HTTP GET request to `/api/barcodes/
 The json object will look like:
 	
 	{
-		"barcode": "CGAP:SARA:62",
+		"barcode": "CGAP:SARA:288",
 		"uuid": "9de2c925-f2ca-4ce5-8444-217a6a46db60",
 		"source": "cgap",
 	}
@@ -177,14 +177,14 @@ This will return a list of json objects like this:
 	    "previous": null,
 	    "results": [
 			{
-				"barcode": "CGAP:SARA:62",
-				"uuid": "9de2c925-f2ca-4ce5-8444-217a6a46db60",
-				"source": "cgap",
+				"barcode": "CGAP:SUZY:288",
+				"uuid": "2004a6a9-e643-4d3f-8609-a58fb910dd46",
+				"source": "cgap"
 			},
 			{
-				"barcode": "CGAP:SARA:63",
-				"uuid": "54b25c77-abc3-44a5-800b-059aca50bb99",
-				"source": "cgap",
+				"barcode": "CGAP:SUZY:296",
+				"uuid": "f3144ffd-3dc6-43a9-ad39-d940c9ab4682",
+				"source": "cgap"
 			},
 			...
 		]
@@ -209,3 +209,33 @@ Example json object:
 			"name": "sscape"
 		}
 	]
+
+
+## Using checksums
+All barcodes **generated** by the barcode mint will have a checksum included.
+To check this convert all the characters of the barcodes into digits. 
+
+The alphabet is:
+
+	Alphabet:  0  | 1  | 2  | 3  | 4  | 5  | 6  | 7  | 8  | 9  | A  | B  | C
+	Number:    0  | 1  | 2  | 3  | 4  | 5  | 6  | 7  | 8  | 9  | 10 | 11 | 12
+	
+	Alphabet:  D  | E  | F  | G  | H  | I  | J  | K  | L  | M  | N  | O  | P 
+	Number:    13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25
+	
+	Alphabet:  Q  | R  | S  | T  | U  | V  | W  | X  | Y  | Z  | :  | _  | -
+	Number:    26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38
+	
+Multiply each of the digits by its position, where 1 is the right most position. Then sum all the numbers. If the sum mod 10 equals 0 the barcode passed the checksum.	
+		
+	Barcode:      C   G   A   P   :   S   U   Z   Y   :   2   9   6
+	  
+	Converted:   12  16  10  25  36  28  30  35  34  36   2   9   6
+	              *   *   *   *   *   *   *   *   *   *   *   *   *   
+	Positions:   13  12  11  10   9   8   7   6   5   4   3   2   1
+	              =   =   =   =   =   =   =   =   =   =   =   =   =   
+	Product:    156 192 110 250 324 224 210 210 170 144   6  18   6
+	
+	156 + 192 + 110 + 250 + 324 + 224 + 210 + 210 + 170 + 144 + 6 + 18 + 6 = 2020
+	2020 % 10 == 0
+	

@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from http import client
+import string
 from uuid import UUID
 import re
 
@@ -261,22 +262,29 @@ class BarcodeViewSet(RetrieveModelMixin,
                         counter = Barcode.objects.filter(
                             barcode__startswith=(data['source'] + SEPARATOR + body + SEPARATOR).upper()).count()
 
+                        alphabet = string.digits + string.ascii_uppercase + ":_-"
+
                         barcode_string = None
                         while barcode_string is None or Barcode.objects.filter(
-                                barcode=barcode_string.upper()).count() > 0:
-                            barcode_string = data['source'] + SEPARATOR + body + SEPARATOR + str(counter)
+                                barcode=barcode_string).count() > 0:
+                            barcode_string = (data['source'] + SEPARATOR + body + SEPARATOR + str(counter)).upper()
+
+                            # Add checksum
+                            barcode_string += str(10 - (sum(
+                                [i * alphabet.index(x) for i, x in enumerate(reversed(barcode_string), 2)]) % 10))
+
                             counter += 1
 
                         if 'uuid' in data:
                             barcode = Barcode.objects.create(
                                 source=Source.objects.get(name=data['source'].lower()),
-                                barcode=barcode_string.upper(),
+                                barcode=barcode_string,
                                 uuid=UUID(data['uuid'])
                             )
                         else:
                             barcode = Barcode.objects.create(
                                 source=Source.objects.get(name=data['source'].lower()),
-                                barcode=barcode_string.upper()
+                                barcode=barcode_string
                             )
 
                         barcodes.append(barcode)
