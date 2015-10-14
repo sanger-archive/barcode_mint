@@ -270,8 +270,8 @@ class BarcodeViewSet(RetrieveModelMixin,
                             barcode_string = (data['source'] + SEPARATOR + body + SEPARATOR + str(counter)).upper()
 
                             # Add checksum
-                            barcode_string += str(10 - (sum(
-                                [i * alphabet.index(x) for i, x in enumerate(reversed(barcode_string), 2)]) % 10))
+                            barcode_string += str((10 - sum(
+                                [i * alphabet.index(x) for i, x in enumerate(reversed(barcode_string), 2)])) % 10)
 
                             counter += 1
 

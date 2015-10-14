@@ -532,43 +532,41 @@ class RegisterBarcode(APITestCase):
     def test_checksum(self):
         self.data = {
             "source": self.source_string,
-            "body": "check-sum_test"
+            "body": "check-sum_test",
+            "count": 100
         }
 
         (status, results, errors) = self.make_request()
         self.assertEqual(201, status)
 
-        self.assertEqual(1, len(results))
-        barcode_object = results[0]
-        barcode = barcode_object['barcode']
-
+        barcodes = [barcode_object['barcode'] for barcode_object in results]
         alphabet = string.digits + string.ascii_uppercase + ":_-"
 
-        numbers = [alphabet.index(x) for x in barcode]
-        positions = [x for x in range(len(numbers), 0, -1)]
+        for barcode in barcodes:
+            numbers = [alphabet.index(x) for x in barcode]
+            positions = [x for x in range(len(numbers), 0, -1)]
 
-        total = sum(x * y for x, y in zip(numbers, positions))
+            total = sum(x * y for x, y in zip(numbers, positions))
 
-        self.assertEqual(0, total % 10)
+            self.assertEqual(0, total % 10, msg=barcode)
 
     def test_with_extended_alphabet(self):
         self.data = {
             "source": self.source_string,
-            "body": "check-sum_test"
+            "body": "check-sum_test",
+            "count": 100
         }
 
         (status, results, errors) = self.make_request()
         self.assertEqual(201, status)
 
-        self.assertEqual(1, len(results))
-        barcode_object = results[0]
-        barcode = barcode_object['barcode']
-
+        barcodes = [barcode_object['barcode'] for barcode_object in results]
         alphabet = string.digits + string.ascii_uppercase + ":_-*.!"
 
-        numbers = [alphabet.index(x) for x in barcode]
-        positions = [x for x in range(len(barcode), 0, -1)]
+        for barcode in barcodes:
+            numbers = [alphabet.index(x) for x in barcode]
+            positions = [x for x in range(len(barcode), 0, -1)]
 
-        total = sum(x * y for x, y in zip(numbers, positions))
+            total = sum(x * y for x, y in zip(numbers, positions))
 
-        self.assertEqual(0, total % 10)
+            self.assertEqual(0, total % 10, msg=barcode)
